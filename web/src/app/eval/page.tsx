@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Activity, LayoutGrid, AlertTriangle, ShieldCheck, FileText, Loader2, ArrowRight, Download } from "lucide-react";
+import { Activity, LayoutGrid, AlertTriangle, ShieldCheck, FileText, Loader2, ArrowRight, Download, Rocket } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 export default function EvalDashboard() {
@@ -90,16 +90,25 @@ export default function EvalDashboard() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh] bg-transparent text-white">
-        <Card className="w-[500px] border border-red-500/30 bg-red-950/20 backdrop-blur-xl shadow-2xl">
-          <CardHeader>
-            <CardTitle className="text-red-400 font-medium">Ошибка данных RAG</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-slate-200">{error}</p>
-            <p className="mt-4 text-[13px] text-slate-400">Запустите \`python eval/scripts/run_eval.py\` предварительно.</p>
-          </CardContent>
-        </Card>
+      <div className="flex flex-col items-center justify-center min-h-[70vh] bg-transparent text-white animate-in fade-in zoom-in duration-500">
+        <div className="bg-white/5 border border-white/10 p-10 rounded-[32px] backdrop-blur-2xl shadow-2xl max-w-xl text-center relative overflow-hidden">
+           <div className="absolute top-0 right-0 p-8 opacity-10">
+               <Activity className="w-48 h-48 text-purple-500" />
+           </div>
+           <div className="relative z-10">
+             <div className="w-20 h-20 bg-purple-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                 <Rocket className="w-10 h-10 text-purple-400" />
+             </div>
+             <h2 className="text-3xl font-extrabold tracking-tight mb-4 drop-shadow-sm">Оценка RAG пока пуста</h2>
+             <p className="text-white/60 text-lg mb-8 leading-relaxed">
+               В системе пока нет отчетов о качестве генерации.<br/>Перейдите в API Runner, чтобы запустить свой первый тест.
+             </p>
+             <a href="/runner" className="inline-flex items-center justify-center bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-lg shadow-purple-600/20 px-8 py-4 text-white font-bold w-full rounded-2xl transition-all">
+                <Rocket className="w-5 h-5 mr-3" />
+                Перейти в API Runner
+             </a>
+           </div>
+        </div>
       </div>
     );
   }

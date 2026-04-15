@@ -65,6 +65,10 @@ def main() -> None:
         help="Онлайн-режим: вызывать живой API для получения ответов и чанков",
     )
     parser.add_argument(
+        "--dynamic-api-config", default=None,
+        help="Путь к JSON-файлу с настройками динамического API-контракта",
+    )
+    parser.add_argument(
         "--api-url", default=None,
         help="URL живого RAG API (по умолчанию RAG_API_BASE_URL из env или https://assist.dev.mglk.ru)",
     )
@@ -90,14 +94,24 @@ def main() -> None:
     model = target["model"]
 
     import os as _os
+    import json
+    
     api_url = None
-    if args.online:
+    api_config_dict = None
+    
+    if args.dynamic_api_config:
+        with open(args.dynamic_api_config, "r", encoding="utf-8") as f:
+            api_config_dict = json.load(f)
+        mode = "динамический API"
+    elif args.online:
         api_url = (
             args.api_url
             or _os.getenv("RAG_API_BASE_URL")
             or "https://assist.dev.mglk.ru"
         )
-    mode = f"онлайн ({api_url})" if api_url else "офлайн"
+        mode = f"онлайн ({api_url})"
+    else:
+        mode = "офлайн"
     print(f"[+] Input     : {args.input}")
     print(f"[+] Режим     : {mode}")
     print(f"[+] Judge     : {target['name']} ({provider} / {model})")
@@ -122,6 +136,7 @@ def main() -> None:
         max_workers=max_workers,
         threshold=threshold,
         api_url=api_url,
+        api_config_dict=api_config_dict,
         limit=args.limit,
     )
 

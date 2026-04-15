@@ -118,16 +118,25 @@ export default function Dashboard() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-950 text-white">
-        <Card className="w-[500px] border-red-900 bg-red-950">
-          <CardHeader>
-            <CardTitle className="text-red-400">Ошибка данных</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>{error}</p>
-            <p className="mt-4 text-sm text-slate-400">Сначала запустите тестирование ('python scripts/run_redteam.py')</p>
-          </CardContent>
-        </Card>
+      <div className="flex flex-col items-center justify-center min-h-[70vh] bg-transparent text-white animate-in fade-in zoom-in duration-500">
+        <div className="bg-white/5 border border-white/10 p-10 rounded-[32px] backdrop-blur-2xl shadow-2xl max-w-xl text-center relative overflow-hidden">
+           <div className="absolute top-0 right-0 p-8 opacity-10">
+               <ShieldCheck className="w-48 h-48 text-emerald-500" />
+           </div>
+           <div className="relative z-10">
+             <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                 <Zap className="w-10 h-10 text-emerald-400" />
+             </div>
+             <h2 className="text-3xl font-extrabold tracking-tight mb-4 drop-shadow-sm">Добро пожаловать в DeepThroath</h2>
+             <p className="text-white/60 text-lg mb-8 leading-relaxed">
+               Кажется, у вас еще нет завершенных прогонов Red Teaming.<br/>Запустите тестирование атак, чтобы увидеть аналитику безопасности.
+             </p>
+             <Button onClick={runScan} disabled={running} className="bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 px-8 py-6 text-lg w-full rounded-2xl">
+                {running ? <Loader2 className="w-6 h-6 mr-3 animate-spin" /> : <ShieldCheck className="w-6 h-6 mr-3" />}
+                {running ? "Выполнение симуляции..." : "Запустить первый скан"}
+             </Button>
+           </div>
+        </div>
       </div>
     );
   }

@@ -50,7 +50,8 @@ THRESHOLD_FA     = 0.8   # Faithfulness
 THRESHOLD_CP     = 0.7   # Contextual Precision
 THRESHOLD_CR     = 0.6   # Contextual Recall
 MAX_WORKERS      = 3
-API_URL          = None  # если задан — онлайн-режим
+API_URL          = None  # устаревший хардкод
+API_CONFIG: dict | None = None  # Новый динамический конфиг
 LIMIT            = None  # если задан — обрабатывать только первые N записей
 API_LOG: list    = []    # сырые ответы API (накапливается в потоках)
 ERRORS_LOG: list = []    # ошибки прогона (накапливается в потоках)
@@ -334,42 +335,127 @@ def generate_report(results: list[dict], skipped: int, ts: str,
     return report_path
 
 
-# ── Онлайн-обогащение записи через живой API ─────────────────────────────────
+def get_value_by_path(data: dict, path: str, default=None):
+    if not path:
+        return default
+    keys = path.split('.')
+    val = data
+    for k in keys:
+        if isinstance(val, dict):
+            val = val.get(k)
+        elif isinstance(val, list) and k.isdigit():
+            val = val[int(k)]
+        else:
+            return default
+        if val is None:
+            return default
+    return val
+
+def resolve_template(template, rec: dict):
+    if isinstance(template, str):
+        res = template
+        for k, v in rec.items():
+            if isinstance(v, str):
+                res = res.replace(f"{{{{{k}}}}}", v)
+        return res
+    elif isinstance(template, dict):
+        res = {}
+        for k, v in template.items():
+            res[k] = resolve_template(v, rec)
+        return res
+    elif isinstance(template, list):
+        return [resolve_template(v, rec) for v in template]
+    return template
 
 def fetch_from_api(rec: dict) -> dict:
-    """Вызывает POST {API_URL}/api/v1/eval/rag и добавляет actual_answer + retrieval_context."""
+    """Вызывает динамический RAG API согласно API_CONFIG."""
     if not _HAS_HTTPX:
         raise RuntimeError("httpx не установлен: pip install httpx")
-    if not API_URL:
-        raise RuntimeError("API_URL не задан")
+    
+    if API_CONFIG:
+        config = API_CONFIG
+    elif API_URL:
+        # Fallback на старый хардкод
+        config = {
+            "url": API_URL.rstrip("/") + "/api/v1/eval/rag",
+            "method": "POST",
+            "headers": {},
+            "body": {"question": "{{user_query}}", "category": "{{category}}"},
+            "extractors": {
+                "answer": "answer",
+                "chunks": "retrieved_chunks"
+            }
+        }
+    else:
+        raise RuntimeError("API_URL или API_CONFIG не задан")
 
-    # Поддерживаем оба имени поля: question (датасет) и user_query (top_k)
     question = rec.get("question") or rec.get("user_query", "")
     category = rec.get("category") or rec.get("intent", "")
 
-    with _httpx.Client(base_url=API_URL, timeout=120.0) as client:
-        resp = client.post("/api/v1/eval/rag", json={"question": question, "category": category})
+    # Обогащаем rec для теплейтов
+    template_vars = dict(rec)
+    template_vars["user_query"] = question
+    template_vars["category"] = category
+
+    url = config["url"]
+    method = config.get("method", "POST").upper()
+    headers = config.get("headers", {})
+    body_template = config.get("body", {})
+
+    payload = resolve_template(body_template, template_vars)
+
+    with _httpx.Client(timeout=120.0, verify=False) as client:
+        if method == "POST":
+            resp = client.post(url, headers=headers, json=payload)
+        elif method == "GET":
+            resp = client.get(url, headers=headers, params=payload)
+        else:
+            raise ValueError(f"Unsupported method: {method}")
 
     if resp.status_code != 200:
-        raise RuntimeError(f"API {resp.status_code}: {resp.text[:200]}")
+        raise RuntimeError(f"API {resp.status_code} at {url}: {resp.text[:200]}")
 
-    data = resp.json()
+    try:
+        data = resp.json()
+    except Exception as e:
+        raise RuntimeError(f"API returned invalid JSON: {resp.text[:200]}")
+
+    ex_answer = config.get("extractors", {}).get("answer", "answer")
+    ex_chunks = config.get("extractors", {}).get("chunks", "retrieved_chunks")
+    
+    answer = get_value_by_path(data, ex_answer, "")
+    chunks_raw = get_value_by_path(data, ex_chunks, [])
+    
+    # Пытаемся извлечь текст из чанков
+    chunks_text = []
+    if isinstance(chunks_raw, list):
+        for c in chunks_raw:
+            if isinstance(c, str):
+                chunks_text.append(c)
+            elif isinstance(c, dict):
+                # Ищем стандартные ключи
+                if "content" in c:
+                    chunks_text.append(c["content"])
+                elif "text" in c:
+                    chunks_text.append(c["text"])
+                else:
+                    chunks_text.append(str(c))
+    else:
+        chunks_text = [str(chunks_raw)]
+
     enriched = dict(rec)
     enriched["user_query"]        = question
-    enriched["actual_answer"]     = data.get("answer", "")
-    enriched["retrieval_context"] = [c["content"] for c in data.get("retrieved_chunks", [])]
+    enriched["actual_answer"]     = answer
+    enriched["retrieval_context"] = chunks_text
 
-    # Сохраняем сырой ответ API в лог
     log_entry = {
         "id":              rec.get("id") or rec.get("session_id"),
         "question":        question,
         "category":        category,
-        "answer":          data.get("answer", ""),
-        "chunks_count":    data.get("chunks_count", len(data.get("retrieved_chunks", []))),
-        "retrieved_chunks": [
-            {"content": c.get("content", ""), "source": c.get("source"), "score": c.get("score")}
-            for c in data.get("retrieved_chunks", [])
-        ],
+        "answer":          answer,
+        "chunks_count":    len(chunks_text),
+        "retrieved_chunks": [{"content": c} for c in chunks_text],
+        "api_url":         url
     }
     with API_LOG_LOCK:
         API_LOG.append(log_entry)
@@ -384,7 +470,7 @@ def evaluate_record(rec: dict, index: int, total: int,
     """Создаёт свои экземпляры метрик и вычисляет score + reason для записи."""
 
     # Онлайн-режим: получаем свежий ответ + чанки из живого API
-    if API_URL:
+    if API_URL or API_CONFIG:
         try:
             rec = fetch_from_api(rec)
         except Exception as e:
@@ -440,19 +526,24 @@ def evaluate_record(rec: dict, index: int, total: int,
 
     rec_id = rec.get("id") or rec.get("session_id") or f"index-{index}"
 
+    enabled_metrics = API_CONFIG.get("metrics", ["AR", "FA", "CP", "CR"]) if API_CONFIG else ["AR", "FA", "CP", "CR"]
+
     # Answer Relevancy
-    try:
-        ar_metric.measure(tc)
-        ar_score  = ar_metric.score
-        ar_passed = ar_metric.is_successful()
-        ar_reason = ar_metric.reason
-    except Exception as e:
-        ar_score, ar_passed, ar_reason = None, False, f"ERROR: {e}"
-        with API_LOG_LOCK:
-            ERRORS_LOG.append({"id": rec_id, "question": rec.get("user_query", ""), "error": str(e), "stage": "metric_ar"})
+    if "AR" in enabled_metrics:
+        try:
+            ar_metric.measure(tc)
+            ar_score  = ar_metric.score
+            ar_passed = ar_metric.is_successful()
+            ar_reason = ar_metric.reason
+        except Exception as e:
+            ar_score, ar_passed, ar_reason = None, False, f"ERROR: {e}"
+            with API_LOG_LOCK:
+                ERRORS_LOG.append({"id": rec_id, "question": rec.get("user_query", ""), "error": str(e), "stage": "metric_ar"})
+    else:
+        ar_score, ar_passed, ar_reason = None, None, "skipped"
 
     # Faithfulness — только если есть чанки
-    if has_context:
+    if has_context and "FA" in enabled_metrics:
         try:
             fa_metric.measure(tc)
             fa_score  = fa_metric.score
@@ -463,10 +554,10 @@ def evaluate_record(rec: dict, index: int, total: int,
             with API_LOG_LOCK:
                 ERRORS_LOG.append({"id": rec_id, "question": rec.get("user_query", ""), "error": str(e), "stage": "metric_fa"})
     else:
-        fa_score, fa_passed, fa_reason = None, None, "no retrieval_context"
+        fa_score, fa_passed, fa_reason = None, None, "skipped or no retrieval_context"
 
     # Contextual Precision — если есть чанки и expected
-    if has_context and has_expected:
+    if has_context and has_expected and "CP" in enabled_metrics:
         try:
             cp_metric.measure(tc)
             cp_score  = cp_metric.score
@@ -477,10 +568,10 @@ def evaluate_record(rec: dict, index: int, total: int,
             with API_LOG_LOCK:
                 ERRORS_LOG.append({"id": rec_id, "question": rec.get("user_query", ""), "error": str(e), "stage": "metric_cp"})
     else:
-        cp_score, cp_passed, cp_reason = None, None, "no retrieval_context or expected"
+        cp_score, cp_passed, cp_reason = None, None, "skipped, no context, or no expected"
 
     # Contextual Recall — если есть чанки и expected
-    if has_context and has_expected:
+    if has_context and has_expected and "CR" in enabled_metrics:
         try:
             cr_metric.measure(tc)
             cr_score  = cr_metric.score
@@ -491,7 +582,7 @@ def evaluate_record(rec: dict, index: int, total: int,
             with API_LOG_LOCK:
                 ERRORS_LOG.append({"id": rec_id, "question": rec.get("user_query", ""), "error": str(e), "stage": "metric_cr"})
     else:
-        cr_score, cr_passed, cr_reason = None, None, "no retrieval_context or expected"
+        cr_score, cr_passed, cr_reason = None, None, "skipped, no context, or no expected"
 
     # Лог строки
     ar_lbl = f"{ar_score:.3f}" if ar_score is not None else "—"
@@ -655,6 +746,7 @@ def main(input_path: str):
 
 def run_eval(input_path: str, judge_config: dict, max_workers: int = 10,
              threshold: float = 0.7, api_url: str | None = None,
+             api_config_dict: dict | None = None,
              limit: int | None = None) -> None:
     """Run the eval pipeline with externally supplied judge configuration.
 
@@ -663,10 +755,11 @@ def run_eval(input_path: str, judge_config: dict, max_workers: int = 10,
         judge_config: Dict with keys 'provider', 'model', 'name'.
         max_workers:  Number of parallel worker threads.
         threshold:    Pass/fail threshold (0-1).
-        api_url:      If set — online mode: fetch fresh answers + chunks from the API.
+        api_url:      If set — online mode: fetch fresh answers + chunks from the API (legacy mode).
+        api_config_dict: Detailed API contract (dynamic mode).
         limit:        If set — process only the first N records.
     """
-    global JUDGE_PROVIDER, JUDGE_MODEL_NAME, MAX_WORKERS, THRESHOLD, API_URL, LIMIT, API_LOG, ERRORS_LOG  # noqa: PLW0603
+    global JUDGE_PROVIDER, JUDGE_MODEL_NAME, MAX_WORKERS, THRESHOLD, API_URL, API_CONFIG, LIMIT, API_LOG, ERRORS_LOG  # noqa: PLW0603
     global THRESHOLD_AR, THRESHOLD_FA, THRESHOLD_CP, THRESHOLD_CR, JUDGE_NO_REASONING  # noqa: PLW0603
 
     API_LOG          = []  # сброс перед каждым прогоном
@@ -681,9 +774,13 @@ def run_eval(input_path: str, judge_config: dict, max_workers: int = 10,
     THRESHOLD_CP     = judge_config.get("threshold_cp", 0.7)
     THRESHOLD_CR     = judge_config.get("threshold_cr", 0.6)
     API_URL          = api_url.rstrip("/") if api_url else None
+    API_CONFIG       = api_config_dict
     LIMIT            = limit
-    if API_URL:
-        print(f"[+] Онлайн-режим : {API_URL}/api/v1/eval/rag")
+    
+    if API_CONFIG:
+        print(f"[+] Динамический API-режим: {API_CONFIG.get('method', 'POST')} {API_CONFIG.get('url')}")
+    elif API_URL:
+        print(f"[+] Онлайн-режим (Legacy): {API_URL}/api/v1/eval/rag")
 
     main(input_path)
 
