@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Отчет об оценке безопасности LLM — {{ client_name }}</title>
+    <link rel="stylesheet" href="report.css">
+</head>
+<body>
+
+<!-- ОБЛОЖКА -->
+<div class="cover">
+    <div class="header-logo">🛡️ DeepThroath Security</div>
+    <h1>Отчет о безопасности LLM</h1>
+    <h2>{{ client_name }}</h2>
+    
+    <div class="score-container">
+        <div class="score-badge">
+            <span class="score-num">{{ security_score }}</span>
+            <span class="score-total">/100</span>
+        </div>
+        <div class="score-label">Индекс безопасности
+            {% if score_delta is not none %}
+                <span class="delta {% if score_delta >= 0 %}positive{% else %}negative{% endif %}">
+                    ({{ "+" if score_delta > 0 }}{{ score_delta }} к прошлому замеру)
+                </span>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="meta-grid">
+        <div class="meta-item">
+            <strong>Тестируемая модель:</strong><br>{{ model_version }}
+        </div>
+        <div class="meta-item">
+            <strong>Модель-судья:</strong><br>{{ judge_version }}
+        </div>
+        <div class="meta-item">
+            <strong>Дата отчета:</strong><br>{{ generated_at }}
+        </div>
+        <div class="meta-item">
+            <strong>Всего тестов:</strong><br>{{ total_tests }} (Провалено: {{ total_failed }})
+        </div>
+    </div>
+</div>
+
+<div class="page-break"></div>
+
+<!-- 1. РЕЗЮМЕ ДЛЯ РУКОВОДСТВА -->
+<section>
+    <h2 class="section-title">1. Резюме для руководства</h2>
+    <p>Данный отчет содержит результаты автоматизированного тестирования (Red Teaming) языковой модели на соответствие стандартам безопасности <strong>OWASP LLM Top 10</strong>.</p>
+
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="value">{{ security_score }}/100</div>
+            <div class="label">Индекс безопасности</div>
+        </div>
+        <div class="kpi-card">
+            <div class="value">{{ (overall_asr * 100) | round(1) }}%</div>
+            <div class="label">Успешность атак (ASR)</div>
+        </div>
+        <div class="kpi-card">
+            <div class="value">{{ total_tests }}</div>
+            <div class="label">Выполнено тестов</div>
+        </div>
+        <div class="kpi-card">
+            <div class="value">{{ total_failed }}</div>
+            <div class="label">Найдено уязвимостей</div>
+        </div>
+    </div>
+
+    {% if top_vulnerabilities %}
+    <div class="findings-box">
+        <h3>Критические находки</h3>
+        <table class="minimal-table">
+            <thead>
+                <tr>
+                    <th>Уязвимость</th>
+                    <th>OWASP</th>
+                    <th>Критичность</th>
+                    <th>ASR</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for v in top_vulnerabilities %}
+                <tr>
+                    <td>{{ v.vulnerability }}</td>
+                    <td>{{ v.owasp_id }}</td>
+                    <td><span class="badge badge-{{ v.severity.lower() if v.severity else 'medium' }}">{{ v.severity }}</span></td>
+                    <td><strong>{{ (v.asr * 100) | round(1) }}%</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</section>
+
+<!-- 2. МЕТОДОЛОГИЯ -->
+<section>
+    <h2 class="section-title">2. Методология и метрики</h2>
+    <div class="method-content">
+        <p>Тестирование проводилось методом имитации враждебных атак. Каждое взаимодействие оценивается независимой <strong>моделью-судьей (LLM-as-a-Judge)</strong>.</p>
+        
+        <div class="metric-explainer">
+            <div class="metric-item">
+                <strong>ASR (Attack Success Rate):</strong> Процент атак, которые привели к небезопасному ответу модели. Чем ниже ASR, тем лучше защита.
+            </div>
+            <div class="metric-item">
+                <strong>Pass Rate:</strong> Процент успешно отраженных атак.
+            </div>
+            <div class="metric-item">
+                <strong>Индекс безопасности:</strong> Взвешенная оценка, где критические уязвимости (Critical/High) имеют больший вес при расчете общего балла.
+            </div>
+        </div>
+
+        <table class="params-table">
+            <tr><td><strong>Целевая модель:</strong></td><td>{{ model_version }}</td></tr>
+            <tr><td><strong>Модель-судья:</strong></td><td>{{ judge_version }}</td></tr>
+            <tr><td><strong>Методы атак:</strong></td><td>{{ methodology.attacks | join(', ') }}</td></tr>
+            <tr><td><strong>Количество симуляций:</strong></td><td>{{ methodology.simulations }} на каждый тип</td></tr>
+        </table>
+    </div>
+</section>
+
+<div class="page-break"></div>
+
+<!-- 3. ДЕТАЛЬНЫЕ РЕЗУЛЬТАТЫ OWASP -->
+<section>
+    <h2 class="section-title">3. Результаты по категориям OWASP</h2>
+    <table class="results-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Категория</th>
+                <th>Критичность</th>
+                <th>Защита</th>
+                <th>Взломы (ASR)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in owasp_results %}
+            {% set pass_pct = (r.pass_rate * 100) | round(1) %}
+            {% set asr_pct  = (r.asr * 100) | round(1) %}
+            <tr>
+                <td class="id-col">{{ r.owasp_id }}</td>
+                <td>{{ r.owasp_name }}</td>
+                <td><span class="badge badge-{{ r.severity.lower() if r.severity else 'medium' }}">{{ r.severity }}</span></td>
+                <td>
+                    {% if pass_pct == 100 %}
+                        <span class="score-pass">✅ {{ pass_pct }}%</span>
+                    {% elif pass_pct >= 50 %}
+                        <span class="score-warn">⚠ {{ pass_pct }}%</span>
+                    {% else %}
+                        <span class="score-fail">❌ {{ pass_pct }}%</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if asr_pct == 0 %}
+                        <span class="score-pass">—</span>
+                    {% elif asr_pct <= 50 %}
+                        <span class="score-warn">{{ asr_pct }}%</span>
+                    {% else %}
+                        <span class="score-fail">{{ asr_pct }}%</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+<!-- 4. ПРИМЕРЫ УЯЗВИМОСТЕЙ -->
+{% if evidence_dialogs %}
+<div class="page-break"></div>
+<section>
+    <h2 class="section-title">4. Примеры успешных атак (Evidence)</h2>
+    <p class="subtitle">Ниже приведены реальные диалоги, в которых защита модели была обойдена.</p>
+    
+    {% for ev in evidence_dialogs %}
+    <div class="evidence-card">
+        <div class="evidence-header">
+            <span class="badge badge-{{ ev.severity.lower() if ev.severity else 'medium' }}">{{ ev.severity }}</span>
+            <strong>{{ ev.owasp_id }} · {{ ev.vulnerability }}</strong>
+        </div>
+        <div class="dialog-box">
+            <div class="user-msg"><strong>Ввод атакующего:</strong><br>{{ ev.dialog.input }}</div>
+            <div class="ai-msg"><strong>Ответ модели:</strong><br>{{ ev.dialog.output }}</div>
+        </div>
+        <div class="verdict-bar">⚠ ВЕРДИКТ: НЕБЕЗОПАСНО (Score: 1)</div>
+    </div>
+    {% endfor %}
+</section>
+{% endif %}
+
+<!-- 5. РЕКОМЕНДАЦИИ -->
+{% if recommendations %}
+<div class="page-break"></div>
+<section>
+    <h2 class="section-title">5. Рекомендации по устранению</h2>
+    {% for rec in recommendations %}
+    <div class="rec-card">
+        <div class="rec-header">
+            <span class="badge badge-{{ rec.severity.lower() if rec.severity else 'medium' }}">{{ rec.severity }}</span>
+            <strong>{{ rec.owasp_id }} — {{ rec.vulnerability }}</strong>
+        </div>
+        <div class="rec-text">{{ rec.remediation }}</div>
+    </div>
+    {% endfor %}
+</section>
+{% endif %}
+
+<div class="footer">
+    Сгенерировано платформой DeepThroath LLM Security &nbsp;|&nbsp; Конфиденциально
+</div>
+
+</body>
+</html>

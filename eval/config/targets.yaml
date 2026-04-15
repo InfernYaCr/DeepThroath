@@ -1,0 +1,43 @@
+targets:
+  - name: qwen-72b-or
+    provider: openrouter
+    model: qwen/qwen-2.5-72b-instruct
+    description: "Qwen2.5 72B — рекомендуемый судья (качество/цена)"
+    threshold: 0.7
+
+  - name: qwen-235b-or
+    provider: openrouter
+    model: qwen/qwen3-235b-a22b
+    description: "Qwen3 235B MoE — максимальное качество"
+    threshold: 0.7
+
+  - name: qwq-32b-or
+    provider: openrouter
+    model: qwen/qwq-32b
+    description: "QwQ-32B reasoning — аналитический судья, thinking отключён"
+    threshold: 0.7
+    no_reasoning: true
+
+  - name: gpt4o-mini-or
+    provider: openrouter
+    model: openai/gpt-4o-mini
+    description: "GPT-4o-mini — быстрый"
+    threshold: 0.7
+
+  - name: gpt4o-or
+    provider: openrouter
+    model: openai/gpt-4o
+    description: "GPT-4o — точный"
+    threshold: 0.7
+
+  - name: gemini-flash
+    provider: openrouter
+    model: google/gemini-flash-1.5
+    description: "Gemini Flash — дешёвый"
+    threshold: 0.7
+
+  - name: gigachat
+    provider: gigachat
+    model: GigaChat-Pro
+    description: "Российская модель-судья"
+    threshold: 0.7

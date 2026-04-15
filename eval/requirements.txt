@@ -1,0 +1,7 @@
+deepeval
+python-dotenv
+openai
+gigachat
+httpx>=0.28.0
+pytest>=8.0
+pyyaml
