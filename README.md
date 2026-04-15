@@ -54,15 +54,11 @@
 ### 1. Зависимости
 
 ```bash
-# Red team + дашборд Python
+# Единое Python-окружение для Red Team и RAG Eval
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# RAG eval (отдельное окружение)
-cd eval
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cd ..
+> **Примечание (Миграция):** Если у вас раньше была папка `eval/.venv` — смело удаляйте её. Теперь используется только единое окружение в корневой папке `.venv`.
 
 # Веб-дашборд
 cd web && npm install && cd ..
