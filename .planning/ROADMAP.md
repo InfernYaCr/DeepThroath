@@ -23,7 +23,7 @@
   4. Скрипт использует OPENAI_API_KEY и OPENAI_BASE_URL из .env — тот же конфиг что у DeepEval
   5. Python-классы из eval/custom_metrics/ подхватываются автоматически при наличии папки
 **Plans**: 3 plans
-- [ ] 01-01-PLAN.md — Add RAGAS + langchain dependencies to requirements.txt
+- [x] 01-01-PLAN.md — Add RAGAS + langchain dependencies to requirements.txt
 - [ ] 01-02-PLAN.md — Create custom_metrics/ package scaffold with ExampleCustomMetric
 - [ ] 01-03-PLAN.md — Build eval/eval_ragas_metrics.py pipeline (API call, dataset, evaluate, save)
 
