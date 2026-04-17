@@ -1,253 +1,512 @@
-# DeepThroath v2 — LLM Red Teaming + RAG Quality Platform
+<div align="center">
 
-Платформа для тестирования и оценки качества LLM-систем. Объединяет два независимых модуля:
+# DeepThroath
 
-- **Red Team** — автоматические атаки на LLM-ботов по стандарту OWASP LLM Top 10
-- **RAG Eval** — оценка качества ответов RAG-системы через LLM-судью (4 метрики DeepEval)
+### LLM Security & Quality Platform
 
-Веб-дашборд на Next.js 15 + тёмный интерфейс.
+*Comprehensive testing platform for LLM systems: Red Teaming, RAG Evaluation, and Universal API Testing*
 
----
+[![Next.js](https://img.shields.io/badge/Next.js-16.2.2-black?style=flat&logo=next.js)](https://nextjs.org/)
+[![Python](https://img.shields.io/badge/Python-3.11+-blue?style=flat&logo=python)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green?style=flat)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 
-## Структура проекта
+[Features](#features) • [Quick Start](#quick-start) • [Documentation](#documentation) • [Architecture](#architecture) • [Contributing](#contributing)
 
-```
-├── web/                        Next.js дашборд (TypeScript)
-│   └── src/app/
-│       ├── page.tsx            Вкладка Security
-│       ├── eval/page.tsx       Вкладка RAG Eval
-│       └── api/                REST API для обеих вкладок
-│
-├── eval/                       RAG eval pipeline (Python)
-│   ├── eval_rag_metrics.py     Основной pipeline (AR, FA, CP, CR)
-│   ├── scripts/
-│   │   ├── run_eval.py         CLI-запуск прогона
-│   │   └── convert_dataset.py  Конвертер top_k → dataset
-│   ├── datasets/               Датасеты вопросов
-│   ├── config/
-│   │   ├── eval_config.yaml    Настройки (workers, судья)
-│   │   └── targets.yaml        Доступные LLM-судьи
-│   └── results/                Результаты прогонов (генерируется)
-│
-├── tests/
-│   └── eval/                   DeepEval pytest-тесты через живой API
-│       ├── conftest.py         Фикстуры, кеш API-ответов
-│       └── test_rag_deepeval.py 4 метрики + edge cases
-│
-├── src/                        Red team модуль (Python)
-│   ├── red_team/               Атаки, судья, runner
-│   ├── dashboard/              Streamlit-версия (legacy)
-│   └── reports/                Генератор PDF/MD отчётов
-│
-├── scripts/
-│   └── run_redteam.py          CLI-запуск red team скана
-├── config/
-│   ├── attack_config.yaml      Атаки, OWASP-категории, судья
-│   └── targets.yaml            Целевые модели
-└── results/                    Parquet-файлы сканов
-```
+![DeepThroath Dashboard](main.png)
+
+</div>
 
 ---
 
-## Быстрый старт
+## Features
 
-### 1. Зависимости
+DeepThroath is an **API-first platform** that unifies three powerful LLM testing tools into a single, beautiful dashboard:
+
+### Red Teaming
+Proactively test your LLM against security vulnerabilities following **OWASP LLM Top 10**:
+- Prompt Injection attacks
+- Jailbreak attempts
+- PII extraction testing
+- Toxicity detection
+- Context manipulation
+- Automated adversarial prompt generation
+- LLM-as-a-judge evaluation
+- Comprehensive security reports
+
+### RAG Evaluation
+Assess RAG system quality with **4 core metrics** powered by LLM judges:
+- **Answer Relevancy** (≥0.7) — Does the answer match the question?
+- **Faithfulness** (≥0.8) — Is the answer grounded in context? (No hallucinations)
+- **Contextual Precision** (≥0.7) — Are relevant chunks ranked first?
+- **Contextual Recall** (≥0.6) — Were all relevant chunks retrieved?
+- Dataset-based evaluation
+- Live API testing
+- A/B testing support
+
+### API Runner
+Universal tool for testing **any LLM API**:
+- Batch request processing
+- Real-time progress monitoring
+- Performance metrics (latency, tokens, cost)
+- Rate limiting & retry strategies
+- Dataset upload (CSV, JSON, TXT)
+- Export results for analysis
+- Support for OpenAI, Anthropic, local models, and custom APIs
+
+---
+
+## Why DeepThroath?
+
+| Feature | DeepThroath | Other Tools |
+|---------|-------------|-------------|
+| **Unified Dashboard** | All-in-one: Red Team + RAG + API Testing | Separate tools |
+| **API-First** | Works with any LLM API | Limited to specific providers |
+| **Beautiful UI** | Modern Next.js with MiniMax design | CLI-only or basic UIs |
+| **Production Ready** | Docker, CI/CD integration | Research projects |
+| **Self-Hosted** | Full control, no data sharing | Cloud-only SaaS |
+| **Comprehensive Metrics** | Security + Quality + Performance | Single focus |
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- **Node.js** 18+ and npm
+- **Python** 3.11+
+- API keys for LLM providers (OpenAI, Anthropic, OpenRouter, etc.)
+
+### Installation
 
 ```bash
-# Единое Python-окружение для Red Team и RAG Eval
-python -m venv .venv && source .venv/bin/activate
+# Clone the repository
+git clone https://github.com/InfernYaCr/DeepThroath.git
+cd DeepThroath
+
+# Install Python dependencies
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-> **Примечание (Миграция):** Если у вас раньше была папка `eval/.venv` — смело удаляйте её. Теперь используется только единое окружение в корневой папке `.venv`.
+# Install Node.js dependencies
+cd web
+npm install
+cd ..
 
-# Веб-дашборд
-cd web && npm install && cd ..
+# Setup environment variables
+cp .env.example .env
+cp eval/.env.example eval/.env
 ```
 
-### 2. Переменные окружения
+### Configuration
+
+Edit `.env` and `eval/.env` with your API keys:
 
 ```bash
-cp .env.example .env           # red team
-cp eval/.env.example eval/.env  # RAG eval
+# .env (Red Team)
+OPENROUTER_API_KEY=your_key_here
+ANTHROPIC_API_KEY=your_key_here
+
+# eval/.env (RAG Evaluation)
+OPENROUTER_API_KEY=your_key_here
+JUDGE_MODEL=qwen/qwen-2.5-72b-instruct
 ```
 
-| Файл | Ключевые переменные |
-|---|---|
-| `.env` | `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY` |
-| `eval/.env` | `OPENROUTER_API_KEY`, `JUDGE_MODEL` |
-
-### 3. Запустить дашборд
+### Launch Dashboard
 
 ```bash
-cd web && npm run dev
-# → http://localhost:3000
+cd web
+npm run dev
 ```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## Модуль 1 — Security (Red Team)
+## Documentation
 
-Запускает атаки из `config/attack_config.yaml` против целевой модели и оценивает успешность через LLM-судью.
+### Red Teaming
+
+**Run security scan:**
 
 ```bash
 source .venv/bin/activate
 
-# Запуск с настройками по умолчанию
+# Default scan
 python scripts/run_redteam.py
 
-# Выбрать цель и судью
+# Custom target and judge
 python scripts/run_redteam.py --target qwen-72b --judge qwen-72b-or
 ```
 
-Результаты сохраняются в `results/*.parquet` и отображаются во вкладке **Security** дашборда.
+**Results:**
+- Saved to `results/*.parquet`
+- Displayed in **Security** tab of dashboard
+- Includes: Security Score, ASR (Attack Success Rate), OWASP breakdown, attack logs
 
-**Вкладка Security показывает:**
-- Security Score и ASR (Attack Success Rate)
-- Breakdown по OWASP LLM Top 10 категориям
-- Trend по истории сканов
-- Таблица логов с фильтрами, экспорт PDF / MD / JSON
+**Configuration:**
+- Attack vectors: `config/attack_config.yaml`
+- Target models: `config/targets.yaml`
 
 ---
 
-## Модуль 2 — RAG Quality Eval
+### RAG Evaluation
 
-Оценивает качество ответов RAG-бота по 4 метрикам через LLM-судью.
-
-### Метрики
-
-| Метрика | Порог | Что проверяет |
-|---|---|---|
-| **AR** Answer Relevancy | ≥ 0.7 | Ответ соответствует вопросу |
-| **FA** Faithfulness | ≥ 0.8 | Нет галлюцинаций — ответ опирается на чанки |
-| **CP** Contextual Precision | ≥ 0.7 | Нужные чанки идут первыми в выдаче |
-| **CR** Contextual Recall | ≥ 0.6 | Все нужные чанки были найдены |
-
-> FA, CP, CR требуют `retrieval_context` (список чанков из RAG). В офлайн-режиме считается только AR.
-
-### Офлайн-прогон (датасет без живого API)
-
-```bash
-cd eval && source .venv/bin/activate
-
-# Быстрая проверка — 1 вопрос
-python scripts/run_eval.py --input datasets/dataset.json --limit 1
-
-# Полный датасет
-python scripts/run_eval.py --input datasets/20260329_173829_exp_top_k_10_dataset.json
-
-# Другой судья / меньше параллелизма
-python scripts/run_eval.py --input datasets/dataset.json --judge qwen-235b-or --workers 3
-```
-
-### Онлайн-прогон (все 4 метрики через живой API)
-
-```bash
-# 1 вопрос — проверить что API доступен
-python scripts/run_eval.py \
-  --input datasets/20260329_173829_exp_top_k_10_dataset.json \
-  --online --api-url https://your-api.example.com --limit 1
-
-# Полный датасет
-python scripts/run_eval.py \
-  --input datasets/20260329_173829_exp_top_k_10_dataset.json \
-  --online --api-url https://your-api.example.com
-```
-
-### Pytest-тесты
-
-Тест вызывает API **один раз на вопрос**, переиспользует ответ для всех метрик.
-
-```bash
-cd ..  # корень проекта
-
-# Один вопрос
-pytest tests/eval/ -v -k "TC-001" --api-url https://your-api.example.com
-
-# Категория
-pytest tests/eval/ -v -k "transfers" --api-url https://your-api.example.com
-
-# Одна метрика по всем вопросам
-pytest tests/eval/ -v -k "test_answer_relevancy" --api-url https://your-api.example.com
-```
-
-### Перегенерировать отчёт
+**Offline evaluation (dataset-based):**
 
 ```bash
 cd eval
-python eval_rag_metrics.py --report-only results/<папка_прогона>
+source ../.venv/bin/activate
+
+# Quick test (1 question)
+python scripts/run_eval.py --input datasets/dataset.json --limit 1
+
+# Full dataset
+python scripts/run_eval.py --input datasets/dataset.json
+
+# Custom judge and parallelism
+python scripts/run_eval.py \
+  --input datasets/dataset.json \
+  --judge qwen-235b-or \
+  --workers 3
 ```
 
-### Результаты прогона
+**Online evaluation (live API):**
 
-В `eval/results/<timestamp>_<имя_датасета>/`:
+```bash
+# Test with live RAG API
+python scripts/run_eval.py \
+  --input datasets/dataset.json \
+  --online \
+  --api-url https://your-rag-api.com/query \
+  --limit 1
 
-| Файл | Содержимое |
-|---|---|
-| `report.md` | Читаемый отчёт с саммари, таблицами и комментариями судьи |
-| `metrics.json` | Детальные результаты (score, passed, reason) по каждой записи |
-| `metrics.csv` | То же, табличный формат для Excel / Pandas |
-| `api_responses.json` | Сырые ответы RAG-API (вопрос → ответ + чанки) |
-| `errors_log.json` | Ошибки: API-таймауты, невалидный JSON судьи |
+# Full dataset evaluation
+python scripts/run_eval.py \
+  --input datasets/dataset.json \
+  --online \
+  --api-url https://your-rag-api.com/query
+```
 
-Результаты автоматически появляются во вкладке **Качество RAG** дашборда.
+**Results:**
+
+Located in `eval/results/<timestamp>_<dataset_name>/`:
+
+| File | Description |
+|------|-------------|
+| `report.md` | Human-readable report with metrics summary |
+| `metrics.json` | Detailed scores and judge reasoning |
+| `metrics.csv` | Tabular format for Excel/Pandas |
+| `api_responses.json` | Raw API responses (question → answer + chunks) |
+| `errors_log.json` | API errors and timeouts |
+
+**Supported LLM Judges:**
+
+| Judge | Model | Recommendation |
+|-------|-------|----------------|
+| `qwen-72b-or` | qwen/qwen-2.5-72b-instruct | **Default** — Fast & quality |
+| `qwen-235b-or` | qwen/qwen3-235b-a22b | Maximum accuracy |
+| `gpt4o-mini-or` | openai/gpt-4o-mini | Fast alternative |
+| `gpt4o-or` | openai/gpt-4o | High precision |
+| `gemini-flash` | google/gemini-flash-1.5 | Most cost-effective |
 
 ---
 
-## Судьи (RAG eval)
+### API Runner
 
-Настраиваются в `eval/config/targets.yaml`:
+**Use the Dashboard UI:**
 
-| Имя | Модель | Рекомендация |
-|---|---|---|
-| `qwen-72b-or` | qwen/qwen-2.5-72b-instruct | **Дефолт** — быстро и качественно |
-| `qwen-235b-or` | qwen/qwen3-235b-a22b | Максимальное качество |
-| `gpt4o-mini-or` | openai/gpt-4o-mini | Быстрый альтернативный |
-| `gpt4o-or` | openai/gpt-4o | Точный, дороже |
-| `gemini-flash` | google/gemini-flash-1.5 | Самый дешёвый |
-| `gigachat` | GigaChat-Pro | Российская модель |
+1. Navigate to **API Runner** tab
+2. Upload your dataset (CSV, JSON, or TXT)
+3. Configure:
+   - API endpoint URL
+   - HTTP method (POST/GET)
+   - Headers (API keys)
+   - Request body template
+   - Rate limiting settings
+4. Click **Start Runner**
+5. Monitor real-time progress
+6. Export results when complete
 
----
-
-## Датасет
-
-Датасеты лежат в `eval/datasets/`. Формат:
+**Dataset Format:**
 
 ```json
 [
-  {
-    "id": "TC-001",
-    "category": "kids_complex",
-    "question": "Что такое Лес чудес?",
-    "expected_output": "Эталонный ответ...",
-    "actual_output": "Baseline-ответ..."
-  }
+  {"id": "1", "prompt": "What is the capital of France?"},
+  {"id": "2", "prompt": "Explain quantum computing"}
 ]
 ```
 
-Конвертировать из top_k формата:
+**Request Template:**
 
-```bash
-python eval/scripts/convert_dataset.py eval/top_k/file.json
-# → eval/datasets/file_dataset.json
-# → eval/datasets/file_dataset.csv
+Use `{{prompt}}` as placeholder:
+
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {"role": "user", "content": "{{prompt}}"}
+  ]
+}
 ```
 
 ---
 
-## Типичные проблемы
+## Architecture
 
-**FA / CP / CR не считаются в офлайн-прогоне**  
-В датасете нет поля `retrieval_context`. Используйте `--online` — чанки берутся из живого API.
-
-**Ошибки 429 (Rate Limit)**
-```bash
-python scripts/run_eval.py --input file.json --workers 3
+```
+DeepThroath/
+├── web/                          # Next.js 16 Frontend
+│   ├── src/app/
+│   │   ├── page.tsx              # Home page
+│   │   ├── redteam/page.tsx      # Red Team dashboard
+│   │   ├── eval/page.tsx         # RAG Evaluation dashboard
+│   │   ├── runner/page.tsx       # API Runner dashboard
+│   │   ├── faq/page.tsx          # Documentation & FAQ
+│   │   └── layout.tsx            # Root layout with navigation
+│   └── public/                   # Static assets
+│
+├── src/                          # Red Team Module (Python)
+│   ├── red_team/                 # Attack generation & execution
+│   ├── dashboard/                # Streamlit (legacy)
+│   └── reports/                  # PDF/Markdown report generation
+│
+├── eval/                         # RAG Evaluation Module (Python)
+│   ├── eval_rag_metrics.py       # Core evaluation pipeline
+│   ├── scripts/
+│   │   ├── run_eval.py           # CLI runner
+│   │   └── convert_dataset.py   # Dataset converter
+│   ├── datasets/                 # Question datasets
+│   ├── config/
+│   │   ├── eval_config.yaml      # Judge settings
+│   │   └── targets.yaml          # LLM judge configurations
+│   └── results/                  # Evaluation results (auto-generated)
+│
+├── tests/
+│   └── eval/                     # Pytest tests for RAG metrics
+│       ├── conftest.py           # Fixtures & API response caching
+│       └── test_rag_deepeval.py  # 4 metrics + edge cases
+│
+├── scripts/
+│   └── run_redteam.py            # Red team CLI runner
+│
+├── config/
+│   ├── attack_config.yaml        # Attack vectors & OWASP categories
+│   └── targets.yaml              # Target LLM configurations
+│
+└── results/                      # Red team scan results (parquet)
 ```
 
-**504 Gateway Timeout**  
-API нагружен. Уменьшите параллелизм (`--workers 1`) или повторите позже.
+### Technology Stack
 
-**Дашборд не открывается**
+**Frontend:**
+- Next.js 16.2.2 (App Router)
+- React 19 (Server Components)
+- TypeScript 5
+- Tailwind CSS v4
+- MiniMax Design System
+
+**Backend:**
+- Python 3.11+
+- FastAPI (planned for API endpoints)
+- DeepEval (RAG metrics)
+- Pandas & Polars (data processing)
+
+**LLM Integration:**
+- OpenRouter
+- Anthropic Claude
+- OpenAI GPT
+- Google Gemini
+- Local models (Ollama, vLLM)
+
+---
+
+## Docker Deployment
+
 ```bash
-cd web && kill $(lsof -ti:3000) && npm run dev
+# Build and run with Docker Compose
+docker-compose up -d
+
+# Access dashboard
+open http://localhost:3000
 ```
+
+**docker-compose.yml:**
+
+```yaml
+version: '3.8'
+
+services:
+  web:
+    build: ./web
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      - ./results:/app/results
+      - ./eval/results:/app/eval/results
+```
+
+---
+
+## Security & Privacy
+
+**DeepThroath is designed with security in mind:**
+
+✓ **Self-Hosted** — Deploy on your own infrastructure
+✓ **No Data Sharing** — All requests go directly to your APIs
+✓ **API Key Safety** — Keys stored in `.env`, never committed
+✓ **No Telemetry** — Zero tracking or external data transmission
+✓ **Private Cloud Ready** — Works in airgapped environments
+
+**Best Practices:**
+- Use `.env` files for API keys (never commit to Git)
+- Enable RBAC for team deployments
+- Rotate API keys regularly
+- Use read-only API keys where possible
+- Implement secrets management (Vault, AWS Secrets Manager)
+
+---
+
+## Use Cases
+
+### For ML/AI Engineers
+- Test model robustness against adversarial attacks
+- Benchmark RAG system quality
+- A/B test different embedding models or retrieval strategies
+- Monitor production LLM performance
+
+### For Security Teams
+- Validate LLM security posture
+- Red team chatbots before production
+- Identify prompt injection vulnerabilities
+- Generate security audit reports
+
+### For Product Teams
+- Track LLM quality metrics over time
+- Compare different LLM providers (OpenAI vs Anthropic vs local)
+- Measure improvement after prompt engineering
+- Cost optimization through performance analysis
+
+### For DevOps/QA
+- Automate LLM testing in CI/CD pipelines
+- Load testing for LLM APIs
+- Regression testing for chatbot updates
+- Integration testing with custom APIs
+
+---
+
+## Roadmap
+
+- [ ] **Advanced Red Team Attacks** — Indirect prompt injection, multi-turn attacks
+- [ ] **More RAG Metrics** — Answer similarity, semantic consistency
+- [ ] **Historical Analytics** — Trend analysis, comparative dashboards
+- [ ] **API Management** — Built-in rate limiting, caching, load balancing
+- [ ] **Team Collaboration** — User roles, shared workspaces
+- [ ] **Webhooks & Integrations** — Slack, Discord, PagerDuty notifications
+- [ ] **CLI Tool** — Standalone CLI for CI/CD integration
+- [ ] **REST API** — Programmatic access to all features
+- [ ] **Multi-tenancy** — Support for multiple teams/projects
+- [ ] **Cloud Version** — Managed SaaS offering (optional)
+
+---
+
+## Contributing
+
+We welcome contributions! Here's how to get started:
+
+1. **Fork the repository**
+2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
+3. **Make your changes** and commit: `git commit -m 'Add amazing feature'`
+4. **Push to your branch**: `git push origin feature/amazing-feature`
+5. **Open a Pull Request**
+
+**Development Guidelines:**
+- Follow existing code style (Prettier for TypeScript, Black for Python)
+- Add tests for new features
+- Update documentation as needed
+- Keep commits atomic and well-described
+
+---
+
+## Troubleshooting
+
+**Dashboard won't start:**
+```bash
+cd web
+kill $(lsof -ti:3000)  # Kill process on port 3000
+npm run dev
+```
+
+**Rate limit errors (429):**
+```bash
+# Reduce parallelism
+python scripts/run_eval.py --input file.json --workers 1
+```
+
+**API timeout errors (504):**
+```bash
+# Decrease concurrency
+python scripts/run_eval.py --input file.json --workers 1
+```
+
+**Missing retrieval context (FA/CP/CR not calculated):**
+```bash
+# Use online mode to fetch chunks from live API
+python scripts/run_eval.py --input file.json --online --api-url https://your-api.com
+```
+
+**Python dependencies issues:**
+```bash
+# Clean reinstall
+rm -rf .venv
+python -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+---
+
+## License
+
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+
+---
+
+## Acknowledgments
+
+Built with:
+- [Next.js](https://nextjs.org/) — React framework
+- [DeepEval](https://github.com/confident-ai/deepeval) — LLM evaluation framework
+- [Tailwind CSS](https://tailwindcss.com/) — Utility-first CSS
+- [OpenRouter](https://openrouter.ai/) — Unified LLM API
+- [Anthropic](https://www.anthropic.com/) — Claude API
+
+Inspired by:
+- OWASP LLM Top 10
+- DeepEval metrics framework
+- Modern security testing practices
+
+---
+
+<div align="center">
+
+**Built with ❤️ for the LLM Security Community**
+
+[⭐ Star us on GitHub](https://github.com/InfernYaCr/DeepThroath) • [Report Bug](https://github.com/InfernYaCr/DeepThroath/issues) • [Request Feature](https://github.com/InfernYaCr/DeepThroath/issues)
+
+</div>
