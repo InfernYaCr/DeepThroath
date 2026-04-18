@@ -2,23 +2,25 @@
 Pipeline: RAGAS metrics evaluation
 ===================================
 Запуск (из корня проекта):
-  python eval/eval_ragas_metrics.py eval/top_k/<file>.json
+
+  # Режим 1: папка прогона DeepEval (читает api_responses.json — без вызова API)
+  python eval/eval_ragas_metrics.py eval/results/<папка_прогона>/
+
+  # Режим 2: исходный датасет JSON (вызывает RAG API для каждой записи)
+  python eval/eval_ragas_metrics.py eval/datasets/<file>.json
 
 Шаги:
-  1. Читает top_k JSON (тот же формат что у DeepEval: session_id, category, intent,
-     user_query, expected_answer)
-  2. Вызывает RAG API согласно eval/config/eval_config.yaml -> получает
-     actual_answer + retrieved_chunks
-  3. Конвертирует в EvaluationDataset(SingleTurnSample) с маппингом:
+  1. Читает данные (папка DeepEval или датасет JSON)
+  2. Конвертирует в EvaluationDataset(SingleTurnSample) с маппингом:
        user_query -> user_input, actual_answer -> response,
        retrieved_chunks (list) -> retrieved_contexts, expected_answer -> reference
-  4. Запускает ragas.evaluate() со стандартными метриками + автодискавери из
+  3. Запускает ragas.evaluate() со стандартными метриками + автодискавери из
      eval/custom_metrics/
-  5. Сохраняет в eval/results/{timestamp}_{stem}_ragas/metrics.json
+  4. Сохраняет в eval/results/{timestamp}_{stem}_ragas/metrics.json
 
 Настройка: скопируй .env.example -> .env (или используй тот же .env что у DeepEval).
 Переменные окружения: OPENAI_API_KEY, OPENAI_BASE_URL, JUDGE_PROVIDER, JUDGE_MODEL,
-API_URL (опционально).
+API_URL (опционально, только для режима 2).
 """
 
 import os
@@ -246,15 +248,61 @@ def fetch_from_api(rec: dict, api_config: Optional[dict]) -> dict:
     return enriched
 
 
+def load_from_deepeval_run(folder: Path) -> list[dict]:
+    """Режим 1: читает готовый прогон DeepEval без вызова API.
+
+    Из api_responses.json берёт: question, answer, retrieved_chunks (content).
+    Из metrics.json берёт: expected_answer (join по id).
+    """
+    api_path = folder / "api_responses.json"
+    metrics_path = folder / "metrics.json"
+
+    if not api_path.exists():
+        raise FileNotFoundError(f"api_responses.json не найден в {folder}")
+
+    with open(api_path, encoding="utf-8") as f:
+        api_rows = json.load(f)
+
+    expected_by_id: dict = {}
+    if metrics_path.exists():
+        with open(metrics_path, encoding="utf-8") as f:
+            for row in json.load(f):
+                rid = row.get("id") or row.get("session_id")
+                if rid:
+                    expected_by_id[rid] = row.get("expected_answer")
+
+    records = []
+    for row in api_rows:
+        rid = row.get("id")
+        chunks_raw = row.get("retrieved_chunks", [])
+        retrieval_context: list[str] = [
+            c["content"] if isinstance(c, dict) else str(c)
+            for c in chunks_raw
+        ]
+        records.append({
+            "id": rid,
+            "session_id": rid,
+            "category": row.get("category"),
+            "user_query": row.get("question") or row.get("user_query", ""),
+            "actual_answer": row.get("answer") or row.get("actual_answer", ""),
+            "expected_answer": expected_by_id.get(rid),
+            "retrieval_context": retrieval_context,
+        })
+    print(f"[DeepEval run] Загружено {len(records)} записей из {folder.name}")
+    return records
+
+
 def load_and_enrich_records(path: Path, api_config: Optional[dict]) -> list[dict]:
-    """Читает top_k JSON, вызывает RAG API для каждой записи, возвращает обогащённые записи."""
+    """Режим 2: читает датасет JSON, вызывает RAG API для каждой записи."""
     with open(path, encoding="utf-8") as f:
         records = json.load(f)
     enriched = []
     for i, rec in enumerate(records, 1):
+        if "expected_output" in rec and "expected_answer" not in rec:
+            rec = dict(rec, expected_answer=rec["expected_output"])
         try:
             enriched.append(fetch_from_api(rec, api_config))
-            print(f"[{i}/{len(records)}] API OK: {rec.get('session_id', rec.get('id', '-'))}")
+            print(f"[{i}/{len(records)}] API OK: {rec.get('id', rec.get('session_id', '-'))}")
         except Exception as e:
             print(f"[{i}/{len(records)}] API ERROR: {e}")
     return enriched
@@ -433,14 +481,18 @@ def _apply_asyncio_policy() -> None:
 async def run_pipeline(path: Path) -> None:
     """Основной async пайплайн RAGAS-оценки."""
     config = load_eval_config()
-    api_config = config.get("api")
 
-    print(f"Входной файл : {path}")
+    is_deepeval_run = path.is_dir()
+    print(f"Режим        : {'DeepEval run (без API)' if is_deepeval_run else 'датасет JSON (с API)'}")
+    print(f"Входной путь : {path}")
     print(f"Судья        : {JUDGE_PROVIDER} / {JUDGE_MODEL_NAME}")
     print(f"Embeddings   : {EMBEDDINGS_MODEL}")
 
-    # 1. Вызов RAG API для каждой записи
-    records = load_and_enrich_records(path, api_config)
+    # 1. Загрузка записей
+    if is_deepeval_run:
+        records = load_from_deepeval_run(path)
+    else:
+        records = load_and_enrich_records(path, config.get("api"))
     if not records:
         print("[!] Ни одной записи не обогащено — прекращаем.")
         sys.exit(1)
@@ -491,7 +543,7 @@ def main(input_path: str) -> None:
     """Точка входа: валидирует путь, настраивает asyncio, запускает пайплайн."""
     path = Path(input_path)
     if not path.exists():
-        print(f"Файл не найден: {path}")
+        print(f"Путь не найден: {path}")
         sys.exit(1)
     # Позволить импорт eval.custom_metrics при запуске из любой директории
     project_root = Path(__file__).parent.parent
