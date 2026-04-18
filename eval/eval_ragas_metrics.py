@@ -66,53 +66,71 @@ MAX_WORKERS      = 3
 MAX_WAIT         = 120
 OUTPUT_DIR       = Path(__file__).parent / "results"
 CONFIG_PATH      = Path(__file__).parent / "config" / "eval_config.yaml"
+TARGETS_PATH     = Path(__file__).parent / "config" / "targets.yaml"
 CUSTOM_METRICS_DIR = Path(__file__).parent / "custom_metrics"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 
 def load_eval_config() -> dict:
-    """Читает eval/config/eval_config.yaml и возвращает dict конфигурации.
-
-    Если файл не найден — возвращает {} с предупреждением.
-    Если файл не парсится — выводит ошибку и завершает процесс.
-    Поддерживаемые поля: max_workers, api (url/method/headers/body/extractors),
-    metrics (флаги answer_relevancy, faithfulness и др.).
-    """
+    """Читает eval/config/eval_config.yaml и возвращает dict конфигурации."""
     if not CONFIG_PATH.exists():
         warnings.warn(f"eval_config.yaml не найден: {CONFIG_PATH} — используются дефолты", UserWarning)
         return {}
     try:
         with open(CONFIG_PATH, encoding="utf-8") as f:
-            cfg = yaml.safe_load(f) or {}
-        return cfg
+            return yaml.safe_load(f) or {}
     except yaml.YAMLError as e:
         print(f"[ERROR] Ошибка парсинга {CONFIG_PATH}: {e}")
         sys.exit(1)
 
 
-def build_judge() -> LangchainLLMWrapper:
-    """Создаёт LLM-судью по JUDGE_PROVIDER из .env.
+def resolve_judge_config(cfg: dict) -> dict:
+    """Резолвит настройки судьи из eval_config.yaml + targets.yaml.
 
-    Поддерживаемые провайдеры: openai (по умолчанию), openrouter.
-    Для openrouter использует OPENROUTER_API_KEY.
-    Для openai использует OPENAI_API_KEY + опциональный OPENAI_BASE_URL.
+    Приоритет:
+      1. default_judge из eval_config.yaml → поиск в targets.yaml
+      2. JUDGE_PROVIDER / JUDGE_MODEL из .env (фолбэк)
+    Возвращает dict: {provider, model, name}.
     """
-    if JUDGE_PROVIDER == "openrouter":
+    judge_name = cfg.get("default_judge")
+    if judge_name and TARGETS_PATH.exists():
+        try:
+            with open(TARGETS_PATH, encoding="utf-8") as f:
+                targets_cfg = yaml.safe_load(f) or {}
+            targets = {t["name"]: t for t in targets_cfg.get("targets", [])}
+            if judge_name in targets:
+                t = targets[judge_name]
+                return {"provider": t["provider"], "model": t["model"], "name": judge_name}
+            else:
+                print(f"[WARN] Судья '{judge_name}' не найден в targets.yaml — используется .env")
+        except yaml.YAMLError as e:
+            print(f"[WARN] Ошибка парсинга targets.yaml: {e} — используется .env")
+
+    # Фолбэк на .env
+    return {
+        "provider": os.getenv("JUDGE_PROVIDER", "openai").lower(),
+        "model": os.getenv("JUDGE_MODEL", "gpt-4o-mini"),
+        "name": os.getenv("JUDGE_MODEL", "gpt-4o-mini"),
+    }
+
+
+def build_judge(provider: str, model: str) -> LangchainLLMWrapper:
+    """Создаёт LLM-судью. Провайдеры: openai, openrouter."""
+    if provider == "openrouter":
         llm = ChatOpenAI(
-            model=JUDGE_MODEL_NAME,
+            model=model,
             api_key=os.environ["OPENROUTER_API_KEY"],
             base_url="https://openrouter.ai/api/v1",
         )
-    elif JUDGE_PROVIDER == "openai":
+    elif provider == "openai":
         llm = ChatOpenAI(
-            model=JUDGE_MODEL_NAME,
+            model=model,
             api_key=os.environ["OPENAI_API_KEY"],
             base_url=os.getenv("OPENAI_BASE_URL"),
         )
     else:
         raise ValueError(
-            f"Неизвестный JUDGE_PROVIDER: '{JUDGE_PROVIDER}'. "
-            "Поддерживаются: openai, openrouter"
+            f"Неизвестный провайдер судьи: '{provider}'. Поддерживаются: openai, openrouter"
         )
     return LangchainLLMWrapper(llm)
 
@@ -482,10 +500,12 @@ async def run_pipeline(path: Path, limit: Optional[int] = None) -> None:
     """Основной async пайплайн RAGAS-оценки."""
     config = load_eval_config()
 
+    judge_cfg = resolve_judge_config(config)
+
     is_deepeval_run = path.is_dir()
     print(f"Режим        : {'DeepEval run (без API)' if is_deepeval_run else 'датасет JSON (с API)'}")
     print(f"Входной путь : {path}")
-    print(f"Судья        : {JUDGE_PROVIDER} / {JUDGE_MODEL_NAME}")
+    print(f"Судья        : {judge_cfg['provider']} / {judge_cfg['model']} ({judge_cfg['name']})")
     print(f"Embeddings   : {EMBEDDINGS_MODEL}")
 
     # 1. Загрузка записей
@@ -508,7 +528,7 @@ async def run_pipeline(path: Path, limit: Optional[int] = None) -> None:
         sys.exit(1)
 
     # 3. LLM + embeddings
-    llm = build_judge()
+    llm = build_judge(provider=judge_cfg["provider"], model=judge_cfg["model"])
     embeddings = build_embeddings()
 
     # 4. Выбор метрик + автодискавери кастомных
