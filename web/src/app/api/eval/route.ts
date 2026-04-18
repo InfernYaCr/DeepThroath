@@ -53,7 +53,7 @@ export async function GET(request: Request) {
         });
     });
 
-    entries.filter(e => e.isDirectory()).forEach(d => {
+    entries.filter(e => e.isDirectory() && !e.name.endsWith('_ragas')).forEach(d => {
         const metricPath = path.join(evalResultsDir, d.name, 'metrics.json');
         if (fs.existsSync(metricPath)) {
             scans.push({

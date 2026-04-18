@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     const venvPythonPath = path.join(projectRoot, '.venv', 'bin', 'python');
     const pythonExe = fs.existsSync(venvPythonPath) ? venvPythonPath : 'python';
 
-    return new Promise((resolve) => {
+    return new Promise<Response>((resolve) => {
         const pythonProcess = spawn(pythonExe, ['scripts/run_redteam.py'], {
             cwd: projectRoot,
         });

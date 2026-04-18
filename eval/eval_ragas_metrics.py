@@ -46,16 +46,15 @@ try:
 except ImportError:
     _HAS_HTTPX = False
 
-from ragas import EvaluationDataset, evaluate, RunConfig
+from openai import OpenAI as OpenAIClient, AsyncOpenAI as AsyncOpenAIClient
 from ragas.dataset_schema import SingleTurnSample
 from ragas.metrics.collections import (
     Faithfulness, AnswerRelevancy, ContextPrecision,
     ContextRecall, AnswerCorrectness,
 )
 from ragas.metrics.base import MetricWithLLM, SingleTurnMetric
-from ragas.llms import LangchainLLMWrapper
-from ragas.embeddings import LangchainEmbeddingsWrapper
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from ragas.llms import llm_factory
+from ragas.embeddings import OpenAIEmbeddings as RagasOpenAIEmbeddings
 
 # ── Конфигурация верхнего уровня ──────────────────────────────────────────────
 
@@ -114,44 +113,84 @@ def resolve_judge_config(cfg: dict) -> dict:
     }
 
 
-def build_judge(provider: str, model: str) -> LangchainLLMWrapper:
-    """Создаёт LLM-судью. Провайдеры: openai, openrouter."""
+# Reasoning-модели на OpenRouter: thinking ломает PydanticPrompt JSON-вывод.
+# Список определяется по имени модели — добавь сюда новые reasoning-модели по мере появления.
+_OPENROUTER_REASONING_PREFIXES = (
+    "qwen/qwen3",
+    "qwen/qwq",
+    "deepseek/deepseek-r",
+    "deepseek/deepseek-reasoner",
+    "openai/o1",
+    "openai/o3",
+    "openai/o4",
+    "anthropic/claude",  # claude моделей thinking режим опциональный, не мешает
+)
+
+# Минимальный max_tokens для RAGAS: faithfulness генерирует длинные списки утверждений.
+# 1024 (дефолт InstructorLLM) недостаточно — truncation → null scores.
+_RAGAS_MAX_TOKENS = 4096
+
+
+def _is_reasoning_model(model: str) -> bool:
+    """Возвращает True если модель на OpenRouter использует thinking-режим по умолчанию."""
+    m = model.lower()
+    return any(m.startswith(p) for p in _OPENROUTER_REASONING_PREFIXES)
+
+
+def build_judge(provider: str, model: str):
+    """Создаёт LLM-судью через ragas.llms.llm_factory. Провайдеры: openai, openrouter.
+
+    Использует AsyncOpenAI — llm_factory требует async-клиент для abatch_score/agenerate.
+
+    max_tokens=4096 обязателен: RAGAS Faithfulness генерирует длинные списки утверждений,
+    дефолтный лимит (1024) вызывает truncation → null scores.
+
+    extra_body={"reasoning": {"effort": "none"}} — только для reasoning-моделей
+    (Qwen3, QwQ, DeepSeek-R1): thinking-режим ломает PydanticPrompt JSON-парсинг.
+    """
     if provider == "openrouter":
-        llm = ChatOpenAI(
-            model=model,
+        client = AsyncOpenAIClient(
             api_key=os.environ["OPENROUTER_API_KEY"],
             base_url="https://openrouter.ai/api/v1",
         )
+        factory_kwargs: dict = {"max_tokens": _RAGAS_MAX_TOKENS}
+        if _is_reasoning_model(model):
+            factory_kwargs["extra_body"] = {"reasoning": {"effort": "none"}}
+        return llm_factory(model, client=client, **factory_kwargs)
+
     elif provider == "openai":
-        llm = ChatOpenAI(
-            model=model,
-            api_key=os.environ["OPENAI_API_KEY"],
-            base_url=os.getenv("OPENAI_BASE_URL"),
-        )
+        kwargs: dict = {"api_key": os.environ["OPENAI_API_KEY"]}
+        base_url = os.getenv("OPENAI_BASE_URL")
+        if base_url:
+            kwargs["base_url"] = base_url
+        client = AsyncOpenAIClient(**kwargs)
     else:
         raise ValueError(
             f"Неизвестный провайдер судьи: '{provider}'. Поддерживаются: openai, openrouter"
         )
-    return LangchainLLMWrapper(llm)
+    return llm_factory(model, client=client, max_tokens=_RAGAS_MAX_TOKENS)
 
 
-def build_embeddings() -> Optional[LangchainEmbeddingsWrapper]:
-    """OpenAIEmbeddings нужны для AnswerRelevancy.
+def build_embeddings() -> Optional[RagasOpenAIEmbeddings]:
+    """RagasOpenAIEmbeddings нужны для AnswerRelevancy и AnswerCorrectness.
 
-    Возвращает None если OPENAI_API_KEY не задан — тогда AnswerRelevancy пропускается.
+    Возвращает None если OPENAI_API_KEY не задан — тогда обе метрики пропускаются.
     """
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         warnings.warn(
-            "OPENAI_API_KEY не задан — AnswerRelevancy будет пропущен (требует embeddings)",
+            "OPENAI_API_KEY не задан — AnswerRelevancy и AnswerCorrectness будут пропущены (требуют embeddings)",
             UserWarning,
         )
         return None
-    return LangchainEmbeddingsWrapper(OpenAIEmbeddings(
+    kwargs: dict = {"api_key": api_key}
+    base_url = os.getenv("OPENAI_BASE_URL")
+    if base_url:
+        kwargs["base_url"] = base_url
+    return RagasOpenAIEmbeddings(
+        client=OpenAIClient(**kwargs),
         model=EMBEDDINGS_MODEL,
-        api_key=api_key,
-        base_url=os.getenv("OPENAI_BASE_URL"),
-    ))
+    )
 
 
 # ── Template utils (копия из eval_rag_metrics.py:338-368) ────────────────────
@@ -336,39 +375,12 @@ def load_and_enrich_records(path: Path, api_config: Optional[dict]) -> list[dict
     return enriched
 
 
-def build_dataset(records: list[dict]) -> EvaluationDataset:
-    """Конвертирует обогащённые записи в RAGAS EvaluationDataset.
-
-    Маппинг полей:
-      user_query      -> user_input   (обязательно)
-      actual_answer   -> response     (обязательно, пустые записи пропускаются)
-      retrieval_context (list) -> retrieved_contexts (нормализация None/str/list)
-      expected_answer -> reference    (None если пусто)
-    """
-    samples = []
-    for rec in records:
-        uq = (rec.get("user_query") or "").strip()
-        aa = (rec.get("actual_answer") or "").strip()
-        if not uq or not aa:
-            continue
-
-        rc = rec.get("retrieval_context")
-        if rc is None:
-            retrieved_contexts: list[str] = []
-        elif isinstance(rc, str):
-            retrieved_contexts = [rc]
-        else:
-            retrieved_contexts = list(rc)
-
-        reference = rec.get("expected_answer") or None
-
-        samples.append(SingleTurnSample(
-            user_input=uq,
-            response=aa,
-            retrieved_contexts=retrieved_contexts,
-            reference=reference,
-        ))
-    return EvaluationDataset(samples=samples)
+def _filter_records(records: list[dict]) -> list[dict]:
+    """Оставляет только записи с непустыми user_query и actual_answer."""
+    return [
+        r for r in records
+        if (r.get("user_query") or "").strip() and (r.get("actual_answer") or "").strip()
+    ]
 
 
 def discover_custom_metrics() -> list:
@@ -406,31 +418,30 @@ def discover_custom_metrics() -> list:
     return found
 
 
-def select_metrics(
-    dataset: EvaluationDataset,
-    enabled: Optional[dict] = None,
-    has_embeddings: bool = True,
+def build_builtin_metrics(
+    llm,
+    has_context: bool,
+    has_reference: bool,
+    embeddings: Optional[RagasOpenAIEmbeddings] = None,
 ) -> list:
-    """Выбирает список метрик на основе наличия контекста, reference и embeddings.
+    """Создаёт список встроенных RAGAS-метрик (BaseMetric) с учётом graceful-skip.
 
-    Логика graceful-пропуска (RAGAS-04):
-    - AnswerRelevancy: только если has_embeddings (требует embedding-модели)
+    Логика:
+    - AnswerRelevancy: только если embeddings доступны (требуют OpenAI embeddings API)
     - Faithfulness: только если есть retrieved_contexts
-    - ContextPrecision, ContextRecall: только если есть и contexts, и reference
-    - AnswerCorrectness: только если есть reference
-    - Кастомные из eval/custom_metrics/: добавляются автодискавери
+    - ContextPrecision, ContextRecall: только если есть contexts И reference
+    - AnswerCorrectness: если есть reference; без embeddings — weights=[1.0, 0.0]
     """
-    has_context = any(s.retrieved_contexts for s in dataset.samples)
-    has_reference = any(s.reference for s in dataset.samples)
-
+    has_embeddings = embeddings is not None
     metrics: list = []
+
     if has_embeddings:
-        metrics.append(AnswerRelevancy())
+        metrics.append(AnswerRelevancy(llm=llm, embeddings=embeddings))
     else:
         warnings.warn("Embeddings недоступны — пропускаем AnswerRelevancy", UserWarning)
 
     if has_context:
-        metrics.append(Faithfulness())
+        metrics.append(Faithfulness(llm=llm))
     else:
         warnings.warn(
             "retrieved_contexts пуст у всех записей — "
@@ -439,64 +450,160 @@ def select_metrics(
         )
 
     if has_context and has_reference:
-        metrics.extend([ContextPrecision(), ContextRecall()])
+        metrics.extend([ContextPrecision(llm=llm), ContextRecall(llm=llm)])
 
     if has_reference:
-        metrics.append(AnswerCorrectness())
+        if has_embeddings:
+            metrics.append(AnswerCorrectness(llm=llm, embeddings=embeddings))
+        else:
+            # weights=[1.0, 0.0] — только factual component, semantic (embeddings) отключён
+            metrics.append(AnswerCorrectness(llm=llm, weights=[1.0, 0.0]))
 
-    metrics.extend(discover_custom_metrics())
     return metrics
 
 
-def save_results(records: list[dict], result, run_dir: Path) -> Path:
-    """Сохраняет metrics.json в формате совместимом с DeepEval UI.
+async def _score_builtin_metric(
+    metric,
+    records: list[dict],
+) -> list[Optional[float]]:
+    """Оценивает одну встроенную RAGAS-метрику через abatch_score().
 
-    Phase 2 (API route) читает этот файл.
-    Поля: session_id, category, intent, user_query, actual_answer, expected_answer,
-    retrieval_context + *_score поля для каждой метрики.
-    NaN из pandas конвертируется в None (json.dump не поддерживает NaN).
+    RAGAS 0.4.3: built-in метрики (Faithfulness, etc.) наследуют BaseMetric,
+    НЕ совместимы с ragas.evaluation.evaluate() — используем abatch_score напрямую.
+
+    Каждая метрика принимает ровно те поля, что объявлены в её ascore() сигнатуре.
+    Мы инспектируем сигнатуру и фильтруем входной dict, чтобы не передавать лишних
+    kwargs (иначе ascore поднимает TypeError на 'unexpected keyword argument').
     """
-    df = result.to_pandas()
-    scores_list = df.to_dict(orient="records")
+    import inspect
 
-    STANDARD_RAGAS_COLS = {
-        "user_input", "response", "retrieved_contexts", "reference",
-        "faithfulness", "answer_relevancy", "context_precision",
-        "context_recall", "answer_correctness",
+    # Определяем допустимые поля из сигнатуры ascore (кроме 'self')
+    allowed_params: set[str] = set(inspect.signature(metric.ascore).parameters) - {"self"}
+
+    # Полный пул полей для записи
+    FIELD_MAP = {
+        "user_input":        lambda r: r.get("user_query") or "",
+        "response":          lambda r: r.get("actual_answer") or "",
+        "retrieved_contexts": lambda r: [c for c in (r.get("retrieval_context") or []) if isinstance(c, str)],
+        "reference":         lambda r: r.get("expected_answer"),
+    }
+
+    inputs = []
+    for r in records:
+        inp: dict = {}
+        for field, extractor in FIELD_MAP.items():
+            if field not in allowed_params:
+                continue
+            val = extractor(r)
+            # Пропускаем None-значения для опциональных полей
+            if val is None:
+                continue
+            # Пропускаем пустой список retrieved_contexts
+            if field == "retrieved_contexts" and not val:
+                continue
+            inp[field] = val
+        inputs.append(inp)
+
+    try:
+        results = await metric.abatch_score(inputs)
+    except Exception as e:
+        print(f"[WARN] {metric.name}: abatch_score упал — {e}")
+        return [None] * len(records)
+
+    scores: list[Optional[float]] = []
+    for res in results:
+        try:
+            val = float(res.value) if res.value is not None else None
+        except (TypeError, ValueError):
+            val = None
+        scores.append(val)
+    return scores
+
+
+async def _score_custom_metrics(
+    custom_metrics: list,
+    records: list[dict],
+) -> dict[str, list[Optional[float]]]:
+    """Оценивает все кастомные метрики через _single_turn_ascore(SingleTurnSample).
+
+    Кастомные метрики (MetricWithLLM + SingleTurnMetric) используют старый API RAGAS.
+    Каждая запись оценивается последовательно внутри метрики; метрики — параллельно.
+    Возвращает {metric_name: [score_or_None, ...]}.
+    """
+    if not custom_metrics:
+        return {}
+
+    async def _score_one_metric(metric) -> tuple[str, list[Optional[float]]]:
+        scores: list[Optional[float]] = []
+        for r in records:
+            sample = SingleTurnSample(
+                user_input=r.get("user_query") or "",
+                response=r.get("actual_answer") or "",
+                retrieved_contexts=r.get("retrieval_context") or [],
+                reference=r.get("expected_answer"),
+            )
+            try:
+                val = await metric._single_turn_ascore(sample)
+                scores.append(float(val) if val is not None else None)
+            except Exception as e:
+                print(f"[WARN] {metric.name}: _single_turn_ascore упал — {e}")
+                scores.append(None)
+        return metric.name, scores
+
+    tasks = [_score_one_metric(m) for m in custom_metrics]
+    pairs = await asyncio.gather(*tasks)
+    return dict(pairs)
+
+
+def save_results(
+    records: list[dict],
+    all_scores: dict[str, list[Optional[float]]],
+    run_dir: Path,
+) -> Path:
+    """Сохраняет metrics.json в формате, совместимом с DeepEval UI (API route Phase 2).
+
+    all_scores: {metric_name: [score_or_None per record]}
+    Имена метрик маппируются в *_score поля:
+      faithfulness         → faithfulness_score
+      answer_relevancy     → answer_relevancy_score
+      context_precision    → context_precision_score
+      context_recall       → context_recall_score
+      answer_correctness   → answer_correctness_score
+      <custom>             → <custom>_score
+    """
+    BUILTIN_MAP = {
+        "faithfulness":       "faithfulness_score",
+        "answer_relevancy":   "answer_relevancy_score",
+        "context_precision":  "context_precision_score",
+        "context_recall":     "context_recall_score",
+        "answer_correctness": "answer_correctness_score",
     }
 
     rows = []
-    for rec, scores in zip(records, scores_list):
-        row = {
-            "session_id": rec.get("session_id") or rec.get("id"),
-            "category": rec.get("category"),
-            "intent": rec.get("intent"),
-            "user_query": rec.get("user_query"),
-            "actual_answer": rec.get("actual_answer"),
+    for i, rec in enumerate(records):
+        row: dict = {
+            "session_id":      rec.get("session_id") or rec.get("id"),
+            "category":        rec.get("category"),
+            "intent":          rec.get("intent"),
+            "user_query":      rec.get("user_query"),
+            "actual_answer":   rec.get("actual_answer"),
             "expected_answer": rec.get("expected_answer"),
             "retrieval_context": rec.get("retrieval_context") or [],
         }
 
-        for ragas_key, out_key in [
-            ("faithfulness",       "faithfulness_score"),
-            ("answer_relevancy",   "answer_relevancy_score"),
-            ("context_precision",  "context_precision_score"),
-            ("context_recall",     "context_recall_score"),
-            ("answer_correctness", "answer_correctness_score"),
-        ]:
-            val = scores.get(ragas_key)
-            # NaN -> None: json.dump не поддерживает NaN
-            if val is not None and (val != val):
-                val = None
-            row[out_key] = val
+        # Всегда пишем все стандартные ключи явным null — иначе на фронте
+        # отсутствующий ключ даёт undefined, который проходит null-проверки
+        # и приводит к NaN% в KPI-карточках.
+        for out_key in BUILTIN_MAP.values():
+            row[out_key] = None
 
-        # Кастомные метрики: все колонки вне стандартного набора
-        for k, v in scores.items():
-            if k in STANDARD_RAGAS_COLS:
-                continue
-            if v is not None and (v != v):
-                v = None
-            row[f"{k}_score"] = v
+        for metric_name, score_list in all_scores.items():
+            val: Optional[float] = score_list[i] if i < len(score_list) else None
+            # NaN → None: json.dump не поддерживает NaN
+            if val is not None and val != val:
+                val = None
+            out_key = BUILTIN_MAP.get(metric_name, f"{metric_name}_score")
+            row[out_key] = val
 
         rows.append(row)
 
@@ -515,9 +622,13 @@ def _apply_asyncio_policy() -> None:
 
 
 async def run_pipeline(path: Path, limit: Optional[int] = None) -> None:
-    """Основной async пайплайн RAGAS-оценки."""
-    config = load_eval_config()
+    """Основной async пайплайн RAGAS-оценки.
 
+    RAGAS 0.4.3: evaluate() несовместима с метриками из ragas.metrics.collections
+    (Faithfulness и др. наследуют BaseMetric, а не Metric → isinstance-проверка падает).
+    Решение: вызываем abatch_score() на каждой метрике напрямую.
+    """
+    config = load_eval_config()
     judge_cfg = resolve_judge_config(config)
 
     is_deepeval_run = path.is_dir()
@@ -535,52 +646,54 @@ async def run_pipeline(path: Path, limit: Optional[int] = None) -> None:
     if limit is not None:
         records = records[:limit]
         print(f"Лимит        : {limit} записей")
+
+    # 2. Фильтрация — убираем записи без обязательных полей
+    records = _filter_records(records)
     if not records:
-        print("[!] Ни одной записи не обогащено — прекращаем.")
+        print("[!] После фильтрации невалидных записей датасет пуст — прекращаем.")
         sys.exit(1)
 
-    # 2. Конвертация в RAGAS dataset (с тем же предикатом что и filtered_records ниже)
-    dataset = build_dataset(records)
-    if len(dataset.samples) == 0:
-        print("[!] После фильтрации невалидных записей датасет пуст.")
-        sys.exit(1)
+    # 3. Определяем наличие данных для graceful-skip метрик
+    has_context = any(r.get("retrieval_context") for r in records)
+    has_reference = any(r.get("expected_answer") for r in records)
 
-    # 3. LLM + embeddings (embeddings опциональны — нужны только для AnswerRelevancy)
+    # 4. LLM + embeddings
     llm = build_judge(provider=judge_cfg["provider"], model=judge_cfg["model"])
     embeddings = build_embeddings()
 
-    # 4. Выбор метрик + автодискавери кастомных
-    metrics = select_metrics(dataset, config.get("metrics"), has_embeddings=embeddings is not None)
-    print(f"Метрики      : {[m.name for m in metrics]}")
+    # 5. Встроенные метрики (BaseMetric, abatch_score)
+    builtin_metrics = build_builtin_metrics(llm, has_context, has_reference, embeddings)
+    print(f"Встроенные   : {[m.name for m in builtin_metrics]}")
 
-    # 5. evaluate — raise_exceptions=False (D-09, PITFALLS.md #6)
-    run_config = RunConfig(max_workers=MAX_WORKERS, max_wait=MAX_WAIT)
-    eval_kwargs: dict = dict(
-        dataset=dataset,
-        metrics=metrics,
-        llm=llm,
-        run_config=run_config,
-        raise_exceptions=False,
-    )
-    if embeddings is not None:
-        eval_kwargs["embeddings"] = embeddings
-    result = evaluate(
-        **eval_kwargs,
-    )
+    # 6. Кастомные метрики (MetricWithLLM, _single_turn_ascore)
+    custom_metrics = discover_custom_metrics()
+    # Инжектируем llm в кастомные метрики
+    for m in custom_metrics:
+        if hasattr(m, "llm") and m.llm is None:
+            m.llm = llm
+    print(f"Кастомные    : {[m.name for m in custom_metrics]}")
 
-    # 6. Сохранение — суффикс _ragas per D-06
-    stem = path.stem
+    # 7. Скоринг — встроенные параллельно, затем кастомные
+    all_scores: dict[str, list[Optional[float]]] = {}
+
+    builtin_tasks = [_score_builtin_metric(m, records) for m in builtin_metrics]
+    builtin_results = await asyncio.gather(*builtin_tasks)
+    for metric, scores in zip(builtin_metrics, builtin_results):
+        all_scores[metric.name] = scores
+        passed = sum(1 for s in scores if s is not None and s >= 0.7)
+        avg = sum(s for s in scores if s is not None) / max(1, sum(1 for s in scores if s is not None))
+        print(f"  {metric.name}: avg={avg:.3f}, pass={passed}/{len(records)}")
+
+    custom_scores = await _score_custom_metrics(custom_metrics, records)
+    all_scores.update(custom_scores)
+
+    # 8. Сохранение — суффикс _ragas per D-06
+    stem = path.name if path.is_dir() else path.stem
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = OUTPUT_DIR / f"{ts}_{stem}_ragas"
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    # Фильтруем records тем же предикатом что build_dataset,
-    # чтобы zip(filtered_records, scores) не разъехался
-    filtered_records = [
-        r for r in records
-        if (r.get("user_query") or "").strip() and (r.get("actual_answer") or "").strip()
-    ]
-    out_path = save_results(filtered_records, result, run_dir)
+    out_path = save_results(records, all_scores, run_dir)
     print(f"\nПапка прогона → {run_dir}")
     print(f"metrics.json  → {out_path}")
 
