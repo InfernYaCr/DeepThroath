@@ -1,9 +1,22 @@
 """
-Run RAGAS evaluation against multiple judge providers in parallel and print a comparison table.
+Run RAGAS or DeepEval evaluation against multiple judge providers in parallel and compare results.
 
 Usage:
+    # RAGAS (default):
     python eval/run_provider_comparison.py eval/datasets/dataset.json \
         --judges gpt4o-mini-or,qwen-72b-or,gemini-flash \
+        --limit 5
+
+    # DeepEval:
+    python eval/run_provider_comparison.py eval/datasets/dataset.json \
+        --framework deepeval \
+        --judges gpt4o-mini-or,qwen-72b-or \
+        --limit 5
+
+    # Both frameworks for the same judge:
+    python eval/run_provider_comparison.py eval/datasets/dataset.json \
+        --framework both \
+        --judges gpt4o-mini-or \
         --limit 5
 
     # Show available judges from targets.yaml:
@@ -42,13 +55,27 @@ def list_judges() -> list[dict]:
     return cfg.get("targets", [])
 
 
-def run_judge(dataset: Path, judge_alias: str, limit: int | None, python: str) -> tuple[str, str | None]:
-    """Run eval for one judge in a thread. Returns (alias, run_dir_name | None)."""
-    cmd = [python, str(EVAL_DIR / "eval_ragas_metrics.py"), str(dataset), f"--judge={judge_alias}"]
+FRAMEWORK_SCRIPTS = {
+    "ragas": "eval_ragas_metrics.py",
+    "deepeval": "eval_rag_metrics.py",
+}
+
+
+def run_judge(
+    dataset: Path,
+    judge_alias: str,
+    limit: int | None,
+    python: str,
+    framework: str = "ragas",
+) -> tuple[str, str | None]:
+    """Run eval for one judge+framework in a thread. Returns (label, run_dir | None)."""
+    script = EVAL_DIR / FRAMEWORK_SCRIPTS[framework]
+    label = f"{judge_alias}/{framework}"
+    cmd = [python, str(script), str(dataset), f"--judge={judge_alias}"]
     if limit:
         cmd.append(f"--limit={limit}")
 
-    print(f"[{judge_alias}] Starting…")
+    print(f"[{label}] Starting…")
     try:
         result = subprocess.run(
             cmd,
@@ -58,26 +85,26 @@ def run_judge(dataset: Path, judge_alias: str, limit: int | None, python: str) -
             timeout=600,
         )
         if result.returncode != 0:
-            print(f"[{judge_alias}] FAILED (exit {result.returncode})")
+            print(f"[{label}] FAILED (exit {result.returncode})")
             if result.stderr:
                 print(result.stderr[-500:])
-            return judge_alias, None
+            return label, None
 
         # Extract run_dir from stdout
         for line in result.stdout.splitlines():
             if "Папка прогона →" in line:
                 run_dir = line.split("→")[-1].strip()
-                print(f"[{judge_alias}] Done → {Path(run_dir).name}")
-                return judge_alias, run_dir
+                print(f"[{label}] Done → {Path(run_dir).name}")
+                return label, run_dir
 
-        print(f"[{judge_alias}] Done (dir unknown)")
-        return judge_alias, None
+        print(f"[{label}] Done (dir unknown)")
+        return label, None
     except subprocess.TimeoutExpired:
-        print(f"[{judge_alias}] TIMEOUT")
-        return judge_alias, None
+        print(f"[{label}] TIMEOUT")
+        return label, None
     except Exception as exc:
-        print(f"[{judge_alias}] ERROR: {exc}")
-        return judge_alias, None
+        print(f"[{label}] ERROR: {exc}")
+        return label, None
 
 
 def compute_averages(run_dir: Path) -> dict[str, float]:
@@ -136,6 +163,9 @@ def main() -> None:
     parser.add_argument("dataset", nargs="?", help="Path to dataset JSON or DeepEval results dir")
     parser.add_argument("--judges", default=None,
                         help="Comma-separated judge aliases from targets.yaml")
+    parser.add_argument("--framework", default="ragas",
+                        choices=["ragas", "deepeval", "both"],
+                        help="Eval framework to use (default: ragas)")
     parser.add_argument("--limit", type=int, default=None, help="Limit records per run")
     parser.add_argument("--list-judges", action="store_true", help="List available judges and exit")
     parser.add_argument("--python", default=None, help="Python binary (default: venv or python3)")
@@ -170,33 +200,38 @@ def main() -> None:
         print("ERROR: no judges configured", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Dataset : {dataset}")
-    print(f"Judges  : {', '.join(judge_aliases)}")
-    print(f"Limit   : {args.limit or 'all'}")
-    print(f"Python  : {python}\n")
+    # Build job matrix: (judge, framework) pairs
+    frameworks = ["ragas", "deepeval"] if args.framework == "both" else [args.framework]
+    jobs = [(alias, fw) for alias in judge_aliases for fw in frameworks]
 
-    # Run all judges in parallel
+    print(f"Dataset    : {dataset}")
+    print(f"Judges     : {', '.join(judge_aliases)}")
+    print(f"Frameworks : {', '.join(frameworks)}")
+    print(f"Jobs       : {len(jobs)}")
+    print(f"Limit      : {args.limit or 'all'}")
+    print(f"Python     : {python}\n")
+
+    # Run all jobs in parallel
     results: dict[str, dict[str, float]] = {}
-    with ThreadPoolExecutor(max_workers=len(judge_aliases)) as pool:
+    with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
         futures = {
-            pool.submit(run_judge, dataset, alias, args.limit, python): alias
-            for alias in judge_aliases
+            pool.submit(run_judge, dataset, alias, args.limit, python, fw): (alias, fw)
+            for alias, fw in jobs
         }
         for future in as_completed(futures):
-            alias, run_dir_str = future.result()
+            label, run_dir_str = future.result()
             if run_dir_str:
                 run_dir = Path(run_dir_str)
                 if not run_dir.exists():
-                    # Try relative to RESULTS_DIR
                     run_dir = RESULTS_DIR / run_dir_str
-                results[alias] = compute_averages(run_dir) if run_dir.exists() else {}
+                results[label] = compute_averages(run_dir) if run_dir.exists() else {}
             else:
-                results[alias] = {}
+                results[label] = {}
 
     print_comparison_table(results)
 
     # Save combined JSON summary
-    summary_path = RESULTS_DIR / f"provider_comparison_{dataset.stem}.json"
+    summary_path = RESULTS_DIR / f"provider_comparison_{dataset.stem}_{args.framework}.json"
     summary_path.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Summary saved → {summary_path}")
 

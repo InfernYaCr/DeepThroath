@@ -61,6 +61,27 @@ API_LOG_LOCK     = threading.Lock()
 OUTPUT_DIR = Path(__file__).parent / "results"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
+TARGETS_PATH_DE = Path(__file__).parent / "config" / "targets.yaml"
+
+
+def _resolve_judge_by_alias_de(alias: str) -> dict:
+    """Look up a judge alias in targets.yaml. Raises ValueError if not found."""
+    if not TARGETS_PATH_DE.exists():
+        raise ValueError(f"targets.yaml not found: {TARGETS_PATH_DE}")
+    with open(TARGETS_PATH_DE, encoding="utf-8") as f:
+        targets_cfg = yaml.safe_load(f) or {}
+    targets = {t["name"]: t for t in targets_cfg.get("targets", [])}
+    if alias not in targets:
+        raise ValueError(f"Judge '{alias}' not in targets.yaml. Available: {list(targets.keys())}")
+    t = targets[alias]
+    return {
+        "provider": t["provider"].lower(),
+        "model": t["model"],
+        "name": alias,
+        "no_reasoning": t.get("no_reasoning", False),
+    }
+
+
 JUDGE_PROVIDER    = os.getenv("JUDGE_PROVIDER", "openai").lower()
 JUDGE_MODEL_NAME  = os.getenv("JUDGE_MODEL", "gpt-4o-mini")
 JUDGE_NO_REASONING = False
@@ -664,7 +685,22 @@ def evaluate_record(rec: dict, index: int, total: int,
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def main(input_path: str, fail_below: float | None = None):
+def main(input_path: str, fail_below: float | None = None, judge_override: str | None = None):
+    global JUDGE_PROVIDER, JUDGE_MODEL_NAME, JUDGE_NO_REASONING
+
+    # Apply judge override from targets.yaml alias
+    judge_cfg: dict | None = None
+    if judge_override:
+        try:
+            judge_cfg = _resolve_judge_by_alias_de(judge_override)
+            JUDGE_PROVIDER = judge_cfg["provider"]
+            JUDGE_MODEL_NAME = judge_cfg["model"]
+            JUDGE_NO_REASONING = judge_cfg.get("no_reasoning", False)
+            print(f"[--judge] Overriding judge: {judge_override} → {JUDGE_PROVIDER}/{JUDGE_MODEL_NAME}")
+        except ValueError as exc:
+            print(f"[ERROR] {exc}", file=sys.stderr)
+            sys.exit(1)
+
     path = Path(input_path)
     if not path.exists():
         print(f"Файл не найден: {path}")
@@ -677,8 +713,23 @@ def main(input_path: str, fail_below: float | None = None):
 
     stem = path.stem
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_dir = OUTPUT_DIR / f"{ts}_{stem}"
+    judge_tag = f"_{judge_override}" if judge_override else ""
+    run_dir = OUTPUT_DIR / f"{ts}_{stem}{judge_tag}"
     run_dir.mkdir(parents=True, exist_ok=True)
+
+    # meta.json — for provider comparison dashboard
+    meta = {
+        "judge_name": judge_override or JUDGE_PROVIDER,
+        "judge_model": JUDGE_MODEL_NAME,
+        "provider": JUDGE_PROVIDER,
+        "dataset": str(path),
+        "timestamp": ts,
+        "total_records": len(records),
+        "framework": "deepeval",
+    }
+    (run_dir / "meta.json").write_text(
+        json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
     done = load_checkpoint(run_dir)
     lock = threading.Lock()
@@ -859,6 +910,10 @@ if __name__ == "__main__":
         "--fail-below", type=float, default=None, metavar="THRESHOLD",
         help="CI/CD quality gate: exit code 1 если avg любой метрики < THRESHOLD (например 0.75)"
     )
+    _parser.add_argument(
+        "--judge", type=str, default=None, metavar="ALIAS",
+        help="Переопределить судью по имени из targets.yaml (например gpt4o-mini-or, qwen-72b-or)"
+    )
     _args = _parser.parse_args()
 
     if _args.report_only:
@@ -888,7 +943,7 @@ if __name__ == "__main__":
                                       input_path=input_path)
         print(f"Отчёт перегенерирован → {report_path}")
     elif _args.input:
-        main(_args.input, fail_below=_args.fail_below)
+        main(_args.input, fail_below=_args.fail_below, judge_override=_args.judge)
     else:
         _parser.print_help()
         sys.exit(1)

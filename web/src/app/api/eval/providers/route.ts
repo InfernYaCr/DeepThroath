@@ -44,6 +44,7 @@ interface JudgeEntry {
     name: string;
     model: string;
     provider: string;
+    framework: string;
     runs: RunEntry[];
     avg: Partial<Record<ScoreKey, number>>;
 }
@@ -110,6 +111,7 @@ export async function GET(): Promise<Response> {
         const judgeName = String(meta.judge_name ?? 'unknown');
         const judgeModel = String(meta.judge_model ?? '');
         const judgeProvider = String(meta.provider ?? '');
+        const framework = String(meta.framework ?? 'ragas');
         const timestamp = String(meta.timestamp ?? '');
         const totalRecords = Number(meta.total_records ?? 0);
 
@@ -117,16 +119,19 @@ export async function GET(): Promise<Response> {
 
         const run: RunEntry = { dir: dirName, timestamp, total_records: totalRecords, metrics };
 
-        if (!judgeMap.has(judgeName)) {
-            judgeMap.set(judgeName, {
+        // Key by judge+framework so ragas and deepeval runs stay separate
+        const mapKey = `${judgeName}::${framework}`;
+        if (!judgeMap.has(mapKey)) {
+            judgeMap.set(mapKey, {
                 name: judgeName,
                 model: judgeModel,
                 provider: judgeProvider,
+                framework,
                 runs: [],
                 avg: {},
             });
         }
-        judgeMap.get(judgeName)!.runs.push(run);
+        judgeMap.get(mapKey)!.runs.push(run);
     }
 
     // Sort runs by timestamp desc, compute avg per judge

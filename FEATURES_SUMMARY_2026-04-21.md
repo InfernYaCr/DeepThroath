@@ -172,18 +172,34 @@ open report.pdf
 - `web/src/app/api/eval/providers/route.ts` — GET `/api/eval/providers`, группирует все прогоны с `meta.json` по судье, возвращает avg метрик
 - `EvalRagasTab.tsx` — коллапсируемая секция «Сравнение провайдеров» внизу страницы, лениво загружается при раскрытии, показывает таблицу с подсветкой лучшего судьи (★)
 
+### Поддержка фреймворков
+Оба фреймворка поддерживают `--judge` флаг и сохраняют `meta.json`:
+- `eval_ragas_metrics.py --judge <alias>` — RAGAS
+- `eval_rag_metrics.py --judge <alias>` — DeepEval
+
 ### Ручная проверка
 ```bash
 # Посмотреть доступных судей
 python eval/run_provider_comparison.py --list-judges
 
-# Запустить сравнение 2 судей с лимитом 3 записи
+# RAGAS: сравнение 2 судей, лимит 3 записи
 python eval/run_provider_comparison.py eval/datasets/dataset.json \
-  --judges gpt4o-mini-or,qwen-72b-or \
-  --limit 3
+  --judges gpt4o-mini-or,qwen-72b-or --limit 3
 
-# Запустить один прогон с конкретным судьёй
+# DeepEval: то же самое
+python eval/run_provider_comparison.py eval/datasets/dataset.json \
+  --framework deepeval --judges gpt4o-mini-or,qwen-72b-or --limit 3
+
+# Оба фреймворка для одного судьи
+python eval/run_provider_comparison.py eval/datasets/dataset.json \
+  --framework both --judges gpt4o-mini-or --limit 3
+
+# Один прогон RAGAS с конкретным судьёй
 python eval/eval_ragas_metrics.py eval/datasets/dataset.json \
+  --judge gpt4o-mini-or --limit 3
+
+# Один прогон DeepEval с конкретным судьёй
+python eval/eval_rag_metrics.py eval/datasets/dataset.json \
   --judge gpt4o-mini-or --limit 3
 
 # API — посмотреть все теги провайдеров
@@ -192,7 +208,7 @@ curl http://localhost:3000/api/eval/providers | python3 -m json.tool
 # Фронт
 # http://localhost:3000/eval → вкладка RAGAS → прокрутить вниз
 # → секция «Сравнение провайдеров» → раскрыть
-# → таблица метрик по судьям, лучший отмечен ★
+# → таблица метрик по судьям (RAGAS/DeepEval), лучший отмечен ★
 ```
 
 ### Формат `meta.json` (создаётся в каждом прогоне с --judge)

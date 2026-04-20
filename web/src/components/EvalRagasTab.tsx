@@ -13,7 +13,7 @@ import type { LucideIcon } from "lucide-react";
 
 // ── Provider Comparison types ─────────────────────────────────────────────────
 interface JudgeRun { dir: string; timestamp: string; total_records: number; metrics: Record<string, number>; }
-interface JudgeEntry { name: string; model: string; provider: string; runs: JudgeRun[]; avg: Record<string, number>; }
+interface JudgeEntry { name: string; model: string; provider: string; framework: string; runs: JudgeRun[]; avg: Record<string, number>; }
 interface ProvidersData { judges: JudgeEntry[]; score_keys: string[]; }
 
 const METRIC_SHORT: Record<string, string> = {
@@ -73,7 +73,7 @@ function ProviderComparisonSection() {
                         <div className="pt-4 space-y-2 text-sm text-[#555]">
                             <p>Нет прогонов с тегом провайдера.</p>
                             <p className="font-mono text-xs bg-[#f5f5f5] rounded px-3 py-2 whitespace-pre">
-                                {`python eval/run_provider_comparison.py \\\n  eval/datasets/dataset.json \\\n  --judges gpt4o-mini-or,qwen-72b-or \\\n  --limit 5`}
+                                {`# RAGAS:\npython eval/run_provider_comparison.py \\\n  eval/datasets/dataset.json \\\n  --judges gpt4o-mini-or,qwen-72b-or --limit 5\n\n# DeepEval:\npython eval/run_provider_comparison.py \\\n  eval/datasets/dataset.json \\\n  --framework deepeval \\\n  --judges gpt4o-mini-or,qwen-72b-or --limit 5\n\n# Оба фреймворка:\npython eval/run_provider_comparison.py \\\n  eval/datasets/dataset.json \\\n  --framework both \\\n  --judges gpt4o-mini-or --limit 5`}
                             </p>
                         </div>
                     )}
@@ -85,9 +85,10 @@ function ProviderComparisonSection() {
                                     <tr>
                                         <th className="text-left text-xs font-semibold text-[#8e8e93] uppercase tracking-wide py-2 pr-4 w-40">Метрика</th>
                                         {judges.map(j => (
-                                            <th key={j.name} className="text-center text-xs font-semibold text-[#222222] py-2 px-3 min-w-[110px]">
+                                            <th key={`${j.name}::${j.framework}`} className="text-center text-xs font-semibold text-[#222222] py-2 px-3 min-w-[110px]">
                                                 <div>{j.name}</div>
                                                 <div className="text-[#8e8e93] font-normal normal-case tracking-normal">{j.model.split("/").pop()}</div>
+                                                <div className="text-[#bbb] font-normal text-[9px] uppercase tracking-wider">{j.framework}</div>
                                             </th>
                                         ))}
                                     </tr>
@@ -100,6 +101,7 @@ function ProviderComparisonSection() {
                                             </td>
                                             {judges.map(j => {
                                                 const val = j.avg[key];
+                                                const jKey = `${j.name}::${j.framework}`;
                                                 const isBest = bestJudge[key] === j.name;
                                                 const pct = val != null ? `${(val * 100).toFixed(1)}%` : "—";
                                                 const color = val == null ? "text-[#ccc]"
@@ -107,7 +109,7 @@ function ProviderComparisonSection() {
                                                     : val >= 0.5 ? "text-amber-600"
                                                     : "text-red-500";
                                                 return (
-                                                    <td key={j.name} className={`py-2 px-3 text-center text-sm font-semibold ${color} ${isBest ? "bg-emerald-50 rounded" : ""}`}>
+                                                    <td key={jKey} className={`py-2 px-3 text-center text-sm font-semibold ${color} ${isBest ? "bg-emerald-50 rounded" : ""}`}>
                                                         {pct}{isBest && val != null ? " ★" : ""}
                                                     </td>
                                                 );
@@ -117,7 +119,7 @@ function ProviderComparisonSection() {
                                     <tr className="border-t-2 border-[#e5e7eb]">
                                         <td className="py-2 pr-4 text-[#888] text-xs font-semibold uppercase tracking-wide">Прогонов</td>
                                         {judges.map(j => (
-                                            <td key={j.name} className="py-2 px-3 text-center text-xs text-[#8e8e93]">{j.runs.length}</td>
+                                            <td key={`${j.name}::${j.framework}`} className="py-2 px-3 text-center text-xs text-[#8e8e93]">{j.runs.length}</td>
                                         ))}
                                     </tr>
                                 </tbody>
