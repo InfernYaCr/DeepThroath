@@ -25,12 +25,16 @@ EVAL_DIR = Path(__file__).parent
 TEMPLATES_DIR = EVAL_DIR / "templates"
 
 SCORE_KEYS = [
-    ("faithfulness_score", "Faithfulness", "Faith"),
-    ("answer_relevancy_score", "Answer Relevancy", "Relev"),
-    ("context_precision_score", "Ctx Precision", "Prec"),
-    ("context_recall_score", "Ctx Recall", "Recall"),
-    ("answer_correctness_score", "Answer Correctness", "Correct"),
-    ("completeness_score", "Completeness", "Compl"),
+    ("faithfulness_score",          "Faithfulness",      "Faith"),
+    ("answer_relevancy_score",      "Answer Relevancy",  "Relev"),
+    # RAGAS key names
+    ("context_precision_score",     "Ctx Precision",     "Prec"),
+    ("context_recall_score",        "Ctx Recall",        "Recall"),
+    # DeepEval key names (contextual_* prefix)
+    ("contextual_precision_score",  "Ctx Precision",     "Prec"),
+    ("contextual_recall_score",     "Ctx Recall",        "Recall"),
+    ("answer_correctness_score",    "Answer Correctness","Correct"),
+    ("completeness_score",          "Completeness",      "Compl"),
 ]
 
 

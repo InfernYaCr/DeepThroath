@@ -119,18 +119,19 @@ curl -X POST http://localhost:3000/api/eval/notify-test
 ---
 
 ## Фича 4 — Branded PDF Report
-**Ветка:** `feat/pdf-report`
+**Ветка:** `feat/pdf-report`  *(расширено в `feat/provider-comparison`)*
 
-Генерация брендированного PDF-отчёта из результатов прогона (WeasyPrint + Jinja2).
+Генерация брендированного PDF-отчёта из результатов прогона (WeasyPrint + Jinja2). Работает для **обоих фреймворков** — RAGAS и DeepEval.
 
 ### Что добавлено
-- `eval/export_pdf.py` — CLI + функция `export_pdf(results_dir, out_path, fail_below)`
+- `eval/export_pdf.py` — CLI + функция `export_pdf(results_dir, out_path, fail_below)`. Автоматически определяет ключи метрик (поддерживает `context_*` RAGAS и `contextual_*` DeepEval)
 - `eval/templates/rag_report.html` — шаблон: обложка, KPI, таблица метрик, построчные данные
 - `eval/templates/rag_report.css` — светлый минималистичный стиль
-- `web/src/app/api/eval/export-pdf/route.ts` — GET `/api/eval/export-pdf?scan=<dir>`
+- `web/src/app/api/eval/export-pdf/route.ts` — GET `/api/eval/export-pdf?scan=<dir>` (любой фреймворк)
 - `web/src/app/api/eval/notify-test/route.ts` — POST `/api/eval/notify-test`
 - `scripts/test_telegram.py` — ручной тест Telegram
 - `EvalRagasTab.tsx` — кнопка «Export PDF» рядом с дропдауном прогонов
+- `EvalDeepEvalTab.tsx` — кнопка «Export PDF» (заменила «Печать PDF»)
 
 ### Ручная проверка
 ```bash

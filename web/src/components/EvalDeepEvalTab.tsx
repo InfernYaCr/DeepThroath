@@ -25,6 +25,7 @@ export default function EvalDeepEvalTab() {
   const [cmpData, setCmpData] = useState<any | null>(null);
   const [cmpLoading, setCmpLoading] = useState(false);
   const [cmpError, setCmpError] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const activeScan = selectedScan === "latest"
     ? (data?.allScans?.[0]?.value ?? null)
@@ -39,9 +40,26 @@ export default function EvalDeepEvalTab() {
     a.click();
   };
 
-  const openPdfReport = () => {
-    if (typeof window === "undefined") return;
-    window.print();
+  const exportPdf = () => {
+    if (!activeScan) return;
+    setPdfLoading(true);
+    fetch(`/api/eval/export-pdf?scan=${encodeURIComponent(activeScan)}`)
+      .then(async (res) => {
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          throw new Error((json as any).error || `HTTP ${res.status}`);
+        }
+        return res.blob();
+      })
+      .then((blob) => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `${activeScan}_report.pdf`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      })
+      .catch((err) => alert(`PDF export failed: ${err.message}`))
+      .finally(() => setPdfLoading(false));
   };
 
   const runComparison = () => {
@@ -189,11 +207,12 @@ export default function EvalDeepEvalTab() {
           </Button>
           <Button
             variant="default"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 hover:shadow-xl hover:shadow-emerald-600/30 transition-all duration-200 rounded-lg px-5 py-2.5 font-semibold"
-            onClick={openPdfReport}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 hover:shadow-xl hover:shadow-emerald-600/30 transition-all duration-200 rounded-lg px-5 py-2.5 font-semibold disabled:opacity-50"
+            onClick={exportPdf}
+            disabled={pdfLoading || !activeScan}
           >
-            <Printer className="w-4 h-4 mr-2" />
-            Печать PDF
+            <Download className="w-4 h-4 mr-2" />
+            {pdfLoading ? "Генерация…" : "Export PDF"}
           </Button>
         </div>
       </div>
