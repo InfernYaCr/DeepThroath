@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
     Activity, ShieldCheck, LayoutGrid, Target, CheckCircle,
-    Rocket, FileText, Sparkles, Star,
+    Rocket, FileText, Sparkles, Star, Download,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -178,10 +178,34 @@ export default function EvalRagasTab() {
     const [loading, setLoading]     = useState(true);
     const [error, setError]         = useState<string | null>(null);
     const [selectedScan, setSelectedScan] = useState("latest");
+    const [pdfLoading, setPdfLoading] = useState(false);
 
     const activeScan = selectedScan === "latest"
         ? (data?.allScans?.[0]?.value ?? null)
         : selectedScan;
+
+    const downloadPdf = () => {
+        if (!activeScan) return;
+        setPdfLoading(true);
+        const url = `/api/eval/export-pdf?scan=${encodeURIComponent(activeScan)}`;
+        fetch(url)
+            .then(async (res) => {
+                if (!res.ok) {
+                    const json = await res.json().catch(() => ({}));
+                    throw new Error(json.error || `HTTP ${res.status}`);
+                }
+                return res.blob();
+            })
+            .then((blob) => {
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = `${activeScan}_report.pdf`;
+                a.click();
+                URL.revokeObjectURL(a.href);
+            })
+            .catch((err) => alert(`PDF export failed: ${err.message}`))
+            .finally(() => setPdfLoading(false));
+    };
 
     useEffect(() => {
         setLoading(true);
@@ -244,9 +268,17 @@ export default function EvalRagasTab() {
     return (
         <div className="w-full space-y-10">
 
-            {/* Scan selector */}
+            {/* Scan selector + PDF export */}
             {data?.allScans && data.allScans.length > 0 && (
-                <div className="flex justify-end">
+                <div className="flex items-center justify-end gap-3">
+                    <button
+                        onClick={downloadPdf}
+                        disabled={pdfLoading || !activeScan}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#e5e7eb] bg-white text-[#222222] text-sm font-medium hover:bg-[#f9fafb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                        <Download className="h-4 w-4" />
+                        {pdfLoading ? "Генерация…" : "Export PDF"}
+                    </button>
                     <div className="w-80">
                         <Select value={selectedScan} onValueChange={(val) => val && setSelectedScan(val)}>
                             <SelectTrigger className="bg-white border-[#e5e7eb] text-[#222222] h-auto py-2">
