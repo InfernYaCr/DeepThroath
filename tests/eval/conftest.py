@@ -45,9 +45,9 @@ def judge():
     import sys
 
     sys.path.insert(0, str(Path(__file__).parent.parent.parent / "eval"))
-    from eval_rag_metrics import build_judge
+    from core.judges import build_judge
 
-    return build_judge(verbose=True)
+    return build_judge(provider="openrouter", model="deepseek/deepseek-v3.2")
 
 
 # ── Session-level API response cache + log ───────────────────────────────────
