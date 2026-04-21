@@ -51,7 +51,8 @@ def run_eval_scan(
     model: str,
     metrics: list[str] | None = None,
     n_samples: int = 50,
-    api_contract: dict | None = None
+    api_contract: dict | None = None,
+    progress_callback: callable | None = None
 ) -> Path:
     """
     Запуск RAG Evaluation (callable from FastAPI).
@@ -62,6 +63,7 @@ def run_eval_scan(
         metrics: Метрики DeepEval (пока не используется, берем все)
         n_samples: Количество примеров для оценки
         api_contract: API контракт для online режима (URL, headers, body template, extractors)
+        progress_callback: Callback для отправки прогресса (processed, total, current_id)
 
     Returns:
         Path к директории с результатами (eval/results/{timestamp}_{dataset})
@@ -126,6 +128,7 @@ def run_eval_scan(
         api_url=None,  # offline mode unless api_contract provided
         api_config_dict=api_contract,  # pass API contract from FastAPI
         limit=n_samples,
+        progress_callback=progress_callback,
     )
 
     return results_dir

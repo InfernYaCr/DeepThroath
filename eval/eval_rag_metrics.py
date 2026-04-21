@@ -58,6 +58,7 @@ THRESHOLD_CR     = 0.6   # Contextual Recall
 MAX_WORKERS      = 3
 API_URL          = None  # устаревший хардкод
 API_CONFIG: dict | None = None  # Новый динамический конфиг
+PROGRESS_CALLBACK: callable | None = None  # Callback для отправки прогресса
 LIMIT            = None  # если задан — обрабатывать только первые N записей
 API_LOG: list    = []    # сырые ответы API (накапливается в потоках)
 ERRORS_LOG: list = []    # ошибки прогона (накапливается в потоках)
@@ -764,6 +765,14 @@ def _evaluate_record_inner(rec: dict, index: int, total: int,
         done[session_key] = result
     save_checkpoint(run_dir, done, lock)
 
+    # Report progress to callback if provided
+    if PROGRESS_CALLBACK:
+        try:
+            processed = len(done)
+            PROGRESS_CALLBACK(processed=processed, total=total, current_id=session_id)
+        except Exception as cb_err:
+            print(f"[WARNING] Progress callback failed: {cb_err}")
+
     return result
 
 
@@ -965,7 +974,8 @@ def main(input_path: str, fail_below: float | None = None, judge_override: str |
 def run_eval(input_path: str, judge_config: dict, max_workers: int = 10,
              threshold: float = 0.7, api_url: str | None = None,
              api_config_dict: dict | None = None,
-             limit: int | None = None) -> Path:
+             limit: int | None = None,
+             progress_callback: callable | None = None) -> Path:
     """Run the eval pipeline with externally supplied judge configuration.
 
     Args:
@@ -976,12 +986,13 @@ def run_eval(input_path: str, judge_config: dict, max_workers: int = 10,
         api_url:      If set — online mode: fetch fresh answers + chunks from the API (legacy mode).
         api_config_dict: Detailed API contract (dynamic mode).
         limit:        If set — process only the first N records.
+        progress_callback: Optional callback function(processed, total, current_id) to report progress.
 
     Returns:
         Path к директории с результатами (eval/results/{timestamp}_{dataset})
     """
     global JUDGE_PROVIDER, JUDGE_MODEL_NAME, MAX_WORKERS, THRESHOLD, API_URL, API_CONFIG, LIMIT, API_LOG, ERRORS_LOG  # noqa: PLW0603
-    global THRESHOLD_AR, THRESHOLD_FA, THRESHOLD_CP, THRESHOLD_CR, JUDGE_NO_REASONING  # noqa: PLW0603
+    global THRESHOLD_AR, THRESHOLD_FA, THRESHOLD_CP, THRESHOLD_CR, JUDGE_NO_REASONING, PROGRESS_CALLBACK  # noqa: PLW0603
 
     API_LOG          = []  # сброс перед каждым прогоном
     ERRORS_LOG       = []  # сброс перед каждым прогоном
@@ -997,6 +1008,7 @@ def run_eval(input_path: str, judge_config: dict, max_workers: int = 10,
     API_URL          = api_url.rstrip("/") if api_url else None
     API_CONFIG       = api_config_dict
     LIMIT            = limit
+    PROGRESS_CALLBACK = progress_callback
     
     if API_CONFIG:
         print(f"[+] Динамический API-режим: {API_CONFIG.get('method', 'POST')} {API_CONFIG.get('url')}")

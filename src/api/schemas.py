@@ -62,6 +62,9 @@ class JobStatus(BaseModel):
     job_id: str
     status: Literal["pending", "running", "completed", "failed"]
     progress: int = Field(0, ge=0, le=100, description="Прогресс в процентах")
+    processed: int = Field(0, ge=0, description="Количество обработанных записей")
+    total: int = Field(0, ge=0, description="Общее количество записей")
+    current_item: str | None = Field(None, description="Текущая обрабатываемая запись (ID или описание)")
     results_path: str | None = Field(None, description="Путь к результатам при завершении")
     error: str | None = Field(None, description="Сообщение об ошибке при провале")
     created_at: str | None = None

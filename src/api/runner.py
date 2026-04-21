@@ -59,6 +59,15 @@ async def run_eval_background(
     try:
         jobs_dict[job_id].status = "running"
         jobs_dict[job_id].created_at = datetime.now().isoformat()
+        jobs_dict[job_id].total = config.n_samples
+
+        # Create progress callback to update job tracker
+        def progress_callback(processed: int, total: int, current_id: str):
+            jobs_dict[job_id].processed = processed
+            jobs_dict[job_id].total = total
+            jobs_dict[job_id].current_item = current_id
+            # Calculate percentage
+            jobs_dict[job_id].progress = int((processed / total * 100)) if total > 0 else 0
 
         from eval.scripts.run_eval import run_eval_scan
 
@@ -68,7 +77,8 @@ async def run_eval_background(
             model=config.model,
             metrics=config.metrics,
             n_samples=config.n_samples,
-            api_contract=config.api_contract
+            api_contract=config.api_contract,
+            progress_callback=progress_callback
         )
 
         jobs_dict[job_id].status = "completed"

@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Play, Activity, Database, Braces, Link2, ExternalLink, Loader2, Key, Shield, BarChart3 } from "lucide-react";
 import DatasetUpload from "@/components/DatasetUpload";
+import { useJobPolling } from "@/hooks/useJobPolling";
+import { JobProgressBar } from "@/components/JobProgressBar";
 
 export default function RunnerPage() {
     const [activeTab, setActiveTab] = useState<string>("eval");
@@ -48,6 +50,24 @@ export default function RunnerPage() {
 
     const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
     const [message, setMessage] = useState("");
+    const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+
+    // Polling для отслеживания прогресса
+    const { status: jobStatus, isPolling } = useJobPolling({
+        jobId: currentJobId,
+        enabled: currentJobId !== null,
+        interval: 2000,
+        onComplete: (finalStatus) => {
+            setStatus("success");
+            setMessage(`Задача завершена! Результаты: ${finalStatus.results_path}`);
+            setCurrentJobId(null);
+        },
+        onError: (error) => {
+            setStatus("error");
+            setMessage(`Ошибка выполнения: ${error}`);
+            setCurrentJobId(null);
+        },
+    });
 
     const loadDatasets = () => {
         fetch("/api/datasets").then(res => res.json()).then(data => {
@@ -149,8 +169,10 @@ export default function RunnerPage() {
                 throw new Error(data.error || "Execution failed");
             }
 
-            setStatus("success");
-            setMessage(`${activeTab === "eval" ? "RAG Evaluation" : "Red Team"} Pipeline started successfully. Job ID: ${data.job_id}`);
+            // Сохраняем job_id и запускаем polling
+            setCurrentJobId(data.job_id);
+            setStatus("loading");
+            setMessage(`Запущена задача ${activeTab === "eval" ? "RAG Evaluation" : "Red Team"}. Job ID: ${data.job_id}`);
 
         } catch (e: any) {
             setStatus("error");
@@ -554,13 +576,18 @@ export default function RunnerPage() {
                                 </button>
                             </div>
 
+                            {/* Progress Bar */}
+                            {(isPolling || jobStatus) && (
+                                <JobProgressBar status={jobStatus} isPolling={isPolling} />
+                            )}
+
                             {status === "error" && (
                                 <div className="p-3 rounded-lg bg-[#fef2f2] border border-red-200 text-[#dc2626] text-sm font-medium">
                                     <span className="font-bold">Ошибка:</span> {message}
                                 </div>
                             )}
 
-                            {status === "success" && (
+                            {status === "success" && !isPolling && (
                                 <div className="p-3 rounded-lg bg-[#ecfdf5] border border-emerald-200 text-[#059669] text-sm font-medium space-y-1">
                                     <p>{message}</p>
                                     <div className="flex items-center gap-1.5 text-[#059669] text-xs">
