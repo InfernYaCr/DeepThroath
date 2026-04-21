@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Отчет о качестве RAG — {{ client_name }}</title>
+    <link rel="stylesheet" href="report.css">
+</head>
+<body>
+
+<!-- ОБЛОЖКА -->
+<div class="cover">
+    <div class="header-logo">📊 DeepThroath RAG Quality</div>
+    <h1>Отчет о качестве RAG</h1>
+    <h2>{{ client_name }}</h2>
+
+    <div class="score-container">
+        <div class="score-badge">
+            <span class="score-num">{{ overall_score }}</span>
+            <span class="score-total">/100</span>
+        </div>
+        <div class="score-label">Индекс качества RAG
+            {% if score_delta is not none %}
+                <span class="delta {% if score_delta >= 0 %}positive{% else %}negative{% endif %}">
+                    ({{ "+" if score_delta > 0 }}{{ score_delta }} к прошлому замеру)
+                </span>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="meta-grid">
+        <div class="meta-item">
+            <strong>Датасет:</strong><br>{{ dataset_name }}
+        </div>
+        <div class="meta-item">
+            <strong>Модель-судья:</strong><br>{{ judge_version }}
+        </div>
+        <div class="meta-item">
+            <strong>Дата отчета:</strong><br>{{ generated_at }}
+        </div>
+        <div class="meta-item">
+            <strong>Всего записей:</strong><br>{{ total_records }} (Пропущено: {{ skipped_count }})
+        </div>
+    </div>
+</div>
+
+<div class="page-break"></div>
+
+<!-- 1. РЕЗЮМЕ ДЛЯ РУКОВОДСТВА -->
+<section>
+    <h2 class="section-title">1. Резюме для руководства</h2>
+    <p>Данный отчет содержит результаты автоматизированной оценки качества системы Retrieval-Augmented Generation (RAG) с использованием метрик <strong>DeepEval</strong>.</p>
+
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="value">{{ overall_score }}/100</div>
+            <div class="label">Общий индекс качества</div>
+        </div>
+        <div class="kpi-card">
+            <div class="value">{{ (ar_avg * 100) | round(1) }}%</div>
+            <div class="label">Answer Relevancy</div>
+        </div>
+        <div class="kpi-card">
+            <div class="value">{{ total_records }}</div>
+            <div class="label">Обработано записей</div>
+        </div>
+        <div class="kpi-card">
+            <div class="value">{{ passed_count }}</div>
+            <div class="label">Прошло проверку</div>
+        </div>
+    </div>
+
+    <div class="findings-box">
+        <h3>Сводка метрик</h3>
+        <table class="minimal-table">
+            <thead>
+                <tr>
+                    <th>Метрика</th>
+                    <th>Среднее</th>
+                    <th>Порог</th>
+                    <th>Pass Rate</th>
+                    <th>Оценка</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if ar_avg is not none %}
+                <tr>
+                    <td><strong>Answer Relevancy</strong></td>
+                    <td>{{ (ar_avg * 100) | round(1) }}%</td>
+                    <td>{{ (ar_threshold * 100) | round(0) }}%</td>
+                    <td>{{ ar_pass_count }}/{{ ar_total }} ({{ (ar_pass_rate * 100) | round(1) }}%)</td>
+                    <td><span class="badge badge-{{ 'high' if ar_avg >= ar_threshold else 'medium' if ar_avg >= 0.5 else 'critical' }}">{{ 'Отлично' if ar_avg >= ar_threshold else 'Хорошо' if ar_avg >= 0.5 else 'Требует улучшения' }}</span></td>
+                </tr>
+                {% endif %}
+                {% if fa_avg is not none %}
+                <tr>
+                    <td><strong>Faithfulness</strong></td>
+                    <td>{{ (fa_avg * 100) | round(1) }}%</td>
+                    <td>{{ (fa_threshold * 100) | round(0) }}%</td>
+                    <td>{{ fa_pass_count }}/{{ fa_total }} ({{ (fa_pass_rate * 100) | round(1) }}%)</td>
+                    <td><span class="badge badge-{{ 'high' if fa_avg >= fa_threshold else 'medium' if fa_avg >= 0.5 else 'critical' }}">{{ 'Отлично' if fa_avg >= fa_threshold else 'Хорошо' if fa_avg >= 0.5 else 'Требует улучшения' }}</span></td>
+                </tr>
+                {% endif %}
+                {% if cp_avg is not none %}
+                <tr>
+                    <td><strong>Contextual Precision</strong></td>
+                    <td>{{ (cp_avg * 100) | round(1) }}%</td>
+                    <td>{{ (cp_threshold * 100) | round(0) }}%</td>
+                    <td>{{ cp_pass_count }}/{{ cp_total }} ({{ (cp_pass_rate * 100) | round(1) }}%)</td>
+                    <td><span class="badge badge-{{ 'high' if cp_avg >= cp_threshold else 'medium' if cp_avg >= 0.5 else 'critical' }}">{{ 'Отлично' if cp_avg >= cp_threshold else 'Хорошо' if cp_avg >= 0.5 else 'Требует улучшения' }}</span></td>
+                </tr>
+                {% endif %}
+                {% if cr_avg is not none %}
+                <tr>
+                    <td><strong>Contextual Recall</strong></td>
+                    <td>{{ (cr_avg * 100) | round(1) }}%</td>
+                    <td>{{ (cr_threshold * 100) | round(0) }}%</td>
+                    <td>{{ cr_pass_count }}/{{ cr_total }} ({{ (cr_pass_rate * 100) | round(1) }}%)</td>
+                    <td><span class="badge badge-{{ 'high' if cr_avg >= cr_threshold else 'medium' if cr_avg >= 0.5 else 'critical' }}">{{ 'Отлично' if cr_avg >= cr_threshold else 'Хорошо' if cr_avg >= 0.5 else 'Требует улучшения' }}</span></td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- 2. МЕТОДОЛОГИЯ -->
+<section>
+    <h2 class="section-title">2. Методология оценки</h2>
+
+    <h3>2.1 Используемые метрики</h3>
+    <p>Для оценки качества RAG системы использованы следующие метрики DeepEval:</p>
+
+    <div class="metric-box">
+        <h4>Answer Relevancy (AR)</h4>
+        <p>Оценивает соответствие ответа заданному вопросу. Высокий показатель указывает на то, что ответ напрямую отвечает на поставленный вопрос.</p>
+        <ul>
+            <li><strong>Порог:</strong> {{ (ar_threshold * 100) | round(0) }}%</li>
+            <li><strong>Среднее значение:</strong> {{ (ar_avg * 100) | round(1) }}%</li>
+            <li><strong>Pass Rate:</strong> {{ (ar_pass_rate * 100) | round(1) }}%</li>
+        </ul>
+    </div>
+
+    {% if fa_avg is not none %}
+    <div class="metric-box">
+        <h4>Faithfulness (FA)</h4>
+        <p>Оценивает соответствие ответа предоставленному контексту (retrieved chunks). Показывает, насколько ответ основан на фактах из документов, а не на галлюцинациях модели.</p>
+        <ul>
+            <li><strong>Порог:</strong> {{ (fa_threshold * 100) | round(0) }}%</li>
+            <li><strong>Среднее значение:</strong> {{ (fa_avg * 100) | round(1) }}%</li>
+            <li><strong>Pass Rate:</strong> {{ (fa_pass_rate * 100) | round(1) }}%</li>
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if cp_avg is not none %}
+    <div class="metric-box">
+        <h4>Contextual Precision (CP)</h4>
+        <p>Оценивает точность извлеченного контекста относительно эталонного ответа. Высокий показатель означает, что релевантные чанки находятся в начале списка.</p>
+        <ul>
+            <li><strong>Порог:</strong> {{ (cp_threshold * 100) | round(0) }}%</li>
+            <li><strong>Среднее значение:</strong> {{ (cp_avg * 100) | round(1) }}%</li>
+            <li><strong>Pass Rate:</strong> {{ (cp_pass_rate * 100) | round(1) }}%</li>
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if cr_avg is not none %}
+    <div class="metric-box">
+        <h4>Contextual Recall (CR)</h4>
+        <p>Оценивает полноту извлеченного контекста. Показывает, насколько хорошо система нашла все необходимые чанки для ответа на вопрос.</p>
+        <ul>
+            <li><strong>Порог:</strong> {{ (cr_threshold * 100) | round(0) }}%</li>
+            <li><strong>Среднее значение:</strong> {{ (cr_avg * 100) | round(1) }}%</li>
+            <li><strong>Pass Rate:</strong> {{ (cr_pass_rate * 100) | round(1) }}%</li>
+        </ul>
+    </div>
+    {% endif %}
+
+    <h3>2.2 Модель-судья</h3>
+    <p>Для оценки использована модель <strong>{{ judge_version }}</strong> с пороговым значением <strong>{{ (ar_threshold * 100) | round(0) }}%</strong>.</p>
+</section>
+
+<div class="page-break"></div>
+
+<!-- 3. РЕЗУЛЬТАТЫ ПО КАТЕГОРИЯМ -->
+<section>
+    <h2 class="section-title">3. Результаты по категориям</h2>
+
+    {% if category_stats %}
+    <table class="minimal-table">
+        <thead>
+            <tr>
+                <th>Категория</th>
+                <th>Записей</th>
+                <th>AR среднее</th>
+                <th>AR Pass%</th>
+                {% if fa_avg is not none %}<th>FA среднее</th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for cat in category_stats %}
+            <tr>
+                <td><strong>{{ cat.category }}</strong></td>
+                <td>{{ cat.count }}</td>
+                <td>{{ (cat.ar_avg * 100) | round(1) }}%</td>
+                <td>{{ (cat.ar_pass_rate * 100) | round(1) }}%</td>
+                {% if fa_avg is not none %}<td>{{ (cat.fa_avg * 100) | round(1) if cat.fa_avg is not none else '—' }}%</td>{% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</section>
+
+<div class="page-break"></div>
+
+<!-- 4. ДЕТАЛЬНЫЕ РЕЗУЛЬТАТЫ -->
+<section>
+    <h2 class="section-title">4. Детальные результаты (топ записей)</h2>
+    <p>Ниже представлены наиболее показательные примеры из тестового набора.</p>
+
+    {% for record in top_records %}
+    <div class="attack-card">
+        <div class="attack-header">
+            <span class="badge badge-{{ 'high' if record.ar_score >= ar_threshold else 'medium' if record.ar_score >= 0.5 else 'critical' }}">
+                {{ record.id }}
+            </span>
+            <span>{{ record.category }}</span>
+        </div>
+
+        <div class="attack-details">
+            <div class="detail-row">
+                <strong>Вопрос:</strong>
+                <p>{{ record.query }}</p>
+            </div>
+
+            {% if record.expected_answer %}
+            <div class="detail-row">
+                <strong>Ожидаемый ответ:</strong>
+                <div class="code-block">{{ record.expected_answer }}</div>
+            </div>
+            {% endif %}
+
+            <div class="detail-row">
+                <strong>Ответ системы:</strong>
+                <div class="code-block">{{ record.actual_answer }}</div>
+            </div>
+
+            <div class="detail-row">
+                <strong>Метрики:</strong>
+                <table class="minimal-table compact">
+                    <tr>
+                        <th>AR</th>
+                        <td>{{ (record.ar_score * 100) | round(1) if record.ar_score is not none else '—' }}%</td>
+                        <td><span class="badge badge-{{ 'high' if record.ar_passed else 'critical' }}">{{ '✓' if record.ar_passed else '✗' }}</span></td>
+                    </tr>
+                    {% if record.fa_score is not none %}
+                    <tr>
+                        <th>FA</th>
+                        <td>{{ (record.fa_score * 100) | round(1) }}%</td>
+                        <td><span class="badge badge-{{ 'high' if record.fa_passed else 'critical' }}">{{ '✓' if record.fa_passed else '✗' }}</span></td>
+                    </tr>
+                    {% endif %}
+                    {% if record.cp_score is not none %}
+                    <tr>
+                        <th>CP</th>
+                        <td>{{ (record.cp_score * 100) | round(1) }}%</td>
+                        <td><span class="badge badge-{{ 'high' if record.cp_passed else 'critical' }}">{{ '✓' if record.cp_passed else '✗' }}</span></td>
+                    </tr>
+                    {% endif %}
+                    {% if record.cr_score is not none %}
+                    <tr>
+                        <th>CR</th>
+                        <td>{{ (record.cr_score * 100) | round(1) }}%</td>
+                        <td><span class="badge badge-{{ 'high' if record.cr_passed else 'critical' }}">{{ '✓' if record.cr_passed else '✗' }}</span></td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+
+            <div class="detail-row">
+                <strong>Комментарий судьи (AR):</strong>
+                <p class="judge-comment">{{ record.ar_reason }}</p>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</section>
+
+<div class="page-break"></div>
+
+<!-- 5. РЕКОМЕНДАЦИИ -->
+<section>
+    <h2 class="section-title">5. Рекомендации</h2>
+
+    {% if ar_avg < ar_threshold %}
+    <div class="recommendation high">
+        <h4>🔴 Answer Relevancy ниже порога</h4>
+        <p><strong>Проблема:</strong> Ответы системы недостаточно релевантны заданным вопросам ({{ (ar_avg * 100) | round(1) }}% < {{ (ar_threshold * 100) | round(0) }}%).</p>
+        <p><strong>Рекомендации:</strong></p>
+        <ul>
+            <li>Улучшить промпт для генерации ответов</li>
+            <li>Убедиться, что модель понимает контекст вопроса</li>
+            <li>Проверить качество retrieval — возможно, извлекаются нерелевантные чанки</li>
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if fa_avg is not none and fa_avg < fa_threshold %}
+    <div class="recommendation high">
+        <h4>🔴 Faithfulness ниже порога</h4>
+        <p><strong>Проблема:</strong> Система генерирует ответы, не основанные на предоставленном контексте (галлюцинации).</p>
+        <p><strong>Рекомендации:</strong></p>
+        <ul>
+            <li>Добавить в промпт explicit instruction опираться только на предоставленный контекст</li>
+            <li>Использовать модель с меньшей склонностью к галлюцинациям</li>
+            <li>Добавить постобработку для фильтрации некорректных ответов</li>
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if cp_avg is not none and cp_avg < cp_threshold %}
+    <div class="recommendation medium">
+        <h4>🟡 Contextual Precision требует улучшения</h4>
+        <p><strong>Проблема:</strong> Релевантные чанки находятся не в начале списка retrieved context.</p>
+        <p><strong>Рекомендации:</strong></p>
+        <ul>
+            <li>Улучшить алгоритм ранжирования (reranker)</li>
+            <li>Настроить embedding модель под специфику задачи (fine-tuning)</li>
+            <li>Проверить метрики similarity — возможно, threshold слишком низкий</li>
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if cr_avg is not none and cr_avg < cr_threshold %}
+    <div class="recommendation medium">
+        <h4>🟡 Contextual Recall требует улучшения</h4>
+        <p><strong>Проблема:</strong> Система не находит все необходимые чанки для ответа.</p>
+        <p><strong>Рекомендации:</strong></p>
+        <ul>
+            <li>Увеличить значение top_k при retrieval</li>
+            <li>Проверить chunking strategy — возможно, релевантная информация разбита между несколькими чанками</li>
+            <li>Рассмотреть использование hybrid search (BM25 + vector)</li>
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if ar_avg >= ar_threshold and (fa_avg is none or fa_avg >= fa_threshold) %}
+    <div class="recommendation low">
+        <h4>✅ Система работает в пределах нормы</h4>
+        <p>Все ключевые метрики находятся выше пороговых значений. Рекомендуется продолжать мониторинг качества и регулярно проводить повторные оценки.</p>
+    </div>
+    {% endif %}
+</section>
+
+<div class="page-break"></div>
+
+<!-- FOOTER -->
+<footer>
+    <p><strong>Сгенерировано:</strong> {{ generated_at }} | <strong>DeepThroath RAG Quality v1.0</strong></p>
+    <p>Этот отчет является автоматически сгенерированным и предназначен только для внутреннего использования.</p>
+</footer>
+
+</body>
+</html>

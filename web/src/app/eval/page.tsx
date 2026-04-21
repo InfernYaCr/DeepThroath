@@ -9,19 +9,7 @@ export default function EvalDashboard() {
   return (
     <div className="w-full space-y-8">
 
-      {/* Page header */}
-      <div>
-        <h1
-          suppressHydrationWarning
-          className="text-5xl font-extrabold tracking-tight text-[#222222] drop-shadow-sm"
-          style={{ fontFamily: "var(--font-outfit, Outfit)" }}
-        >
-          RAG Quality
-        </h1>
-        <p className="text-[#45515e] mt-3 text-lg font-medium">
-          Оценка релевантности и фактологии
-        </p>
-      </div>
+
 
       {/* Tabs */}
       <Tabs defaultValue="deepeval" className="w-full">

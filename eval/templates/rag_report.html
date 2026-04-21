@@ -29,8 +29,6 @@
     </div>
 </div>
 
-<div class="page-break"></div>
-
 <!-- ══ 1. EXECUTIVE SUMMARY ════════════════════════════════════ -->
 <section>
     <h2 class="section-title">1. Резюме</h2>
@@ -94,38 +92,97 @@
     </table>
 </section>
 
-<!-- ══ 3. ROW-LEVEL DETAILS ═════════════════════════════════════ -->
+<!-- ══ 3. DETAILED ANSWERS (like Logs tab) ═══════════════════════ -->
 <section>
-    <h2 class="section-title">3. Детали по записям</h2>
-    <table class="detail-table">
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>ID</th>
-                <th>Вопрос</th>
-                {% for m in metrics_summary %}
-                <th>{{ m.short }}</th>
-                {% endfor %}
-            </tr>
-        </thead>
-        <tbody>
-        {% for row in rows %}
-            <tr>
-                <td>{{ loop.index }}</td>
-                <td>{{ row.session_id or "—" }}</td>
-                <td title="{{ row.user_query }}">{{ row.user_query[:60] }}{% if row.user_query|length > 60 %}…{% endif %}</td>
-                {% for m in metrics_summary %}
-                <td>
-                    {% set val = row[m.key] %}
-                    {% if val is not none %}
-                        {{ "%.0f" | format(val * 100) }}%
-                    {% else %}—{% endif %}
-                </td>
-                {% endfor %}
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
+    <h2 class="section-title">3. Детальные ответы модели</h2>
+    {% for row in rows %}
+    <div class="answer-card" style="margin-bottom: 24px; border: 1px solid #e5e7eb; border-radius: 16px; padding: 24px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.05); page-break-inside: avoid;">
+        <!-- Header -->
+        <div style="margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                <span style="background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; padding: 4px 12px; border-radius: 6px; font-weight: bold; font-size: 13px;">{{ row.id or ("TC-" + "%03d" | format(loop.index)) }}</span>
+                <span style="font-size: 18px; font-weight: bold; color: #222;">{{ row.user_query }}</span>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <span style="background: {{ '#ecfdf5' if row.answer_relevancy_passed else '#fef2f2' }}; color: {{ '#059669' if row.answer_relevancy_passed else '#dc2626' }}; padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;">
+                    AR: {{ "%.0f" | format(row.answer_relevancy_score * 100) if row.answer_relevancy_score is not none else "N/A" }}%
+                </span>
+                {% if row.faithfulness_score is not none %}
+                <span style="background: {{ '#fdf4ff' if row.faithfulness_passed else '#fef2f2' }}; color: {{ '#a21caf' if row.faithfulness_passed else '#dc2626' }}; padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;">
+                    FA: {{ "%.0f" | format(row.faithfulness_score * 100) }}%
+                </span>
+                {% endif %}
+                {% if row.contextual_precision_score is not none %}
+                <span style="background: {{ '#ecfeff' if row.contextual_precision_passed else '#fef2f2' }}; color: {{ '#0e7490' if row.contextual_precision_passed else '#dc2626' }}; padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;">
+                    CP: {{ "%.0f" | format(row.contextual_precision_score * 100) }}%
+                </span>
+                {% endif %}
+                {% if row.contextual_recall_score is not none %}
+                <span style="background: {{ '#f5f3ff' if row.contextual_recall_passed else '#fef2f2' }}; color: {{ '#6d28d9' if row.contextual_recall_passed else '#dc2626' }}; padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;">
+                    CR: {{ "%.0f" | format(row.contextual_recall_score * 100) }}%
+                </span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Answers - Vertical Layout -->
+        <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px;">
+            <div>
+                <h4 style="font-size: 13px; font-weight: 600; color: #8e8e93; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                    <span style="background: #059669; color: white; width: 20px; height: 20px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;">✓</span>
+                    Фактический ответ (Actual)
+                </h4>
+                <div style="background: linear-gradient(to bottom, #f8f9fa, #ffffff); padding: 20px; border-radius: 12px; border-left: 4px solid #059669; border-top: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; font-size: 14px; color: #1f2937; line-height: 1.7; white-space: pre-wrap; box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);">{{ row.actual_answer }}</div>
+            </div>
+            {% if row.expected_answer %}
+            <div>
+                <h4 style="font-size: 13px; font-weight: 600; color: #8e8e93; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                    <span style="background: #2563eb; color: white; width: 20px; height: 20px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;">★</span>
+                    Ожидаемый ответ (Expected)
+                </h4>
+                <div style="background: linear-gradient(to bottom, #eff6ff, #ffffff); padding: 20px; border-radius: 12px; border-left: 4px solid #2563eb; border-top: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; font-size: 14px; color: #1f2937; line-height: 1.7; white-space: pre-wrap; box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);">{{ row.expected_answer }}</div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Judge Reasons -->
+        <div style="border-top: 1px solid #e5e7eb; padding-top: 16px; display: flex; flex-direction: column; gap: 12px;">
+            {% if row.answer_relevancy_reason %}
+            <div style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 12px; border-radius: 8px; font-size: 13px; color: #1d4ed8;">
+                <span style="font-weight: 600; color: #2563eb;">Судья AR:</span> {{ row.answer_relevancy_reason }}
+            </div>
+            {% endif %}
+            {% if row.faithfulness_reason %}
+            <div style="background: #fdf2f8; border: 1px solid #fbcfe8; padding: 12px; border-radius: 8px; font-size: 13px; color: #be185d;">
+                <span style="font-weight: 600; color: #db2777;">Судья FA:</span> {{ row.faithfulness_reason }}
+            </div>
+            {% endif %}
+            {% if row.contextual_precision_reason %}
+            <div style="background: #ecfeff; border: 1px solid #a5f3fc; padding: 12px; border-radius: 8px; font-size: 13px; color: #0e7490;">
+                <span style="font-weight: 600; color: #0891b2;">Судья CP:</span> {{ row.contextual_precision_reason }}
+            </div>
+            {% endif %}
+            {% if row.contextual_recall_reason %}
+            <div style="background: #f5f3ff; border: 1px solid #ddd6fe; padding: 12px; border-radius: 8px; font-size: 13px; color: #6d28d9;">
+                <span style="font-weight: 600; color: #7c3aed;">Судья CR:</span> {{ row.contextual_recall_reason }}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Retrieval Context -->
+        {% if row.retrieval_context and row.retrieval_context|length > 0 %}
+        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+            <h4 style="font-size: 15px; font-weight: 600; color: #222; margin-bottom: 12px;">Контекст из БЗ (Retrieval Context)</h4>
+            {% for ctx in row.retrieval_context %}
+            <div style="background: #f2f3f5; border: 1px solid #e5e7eb; padding: 16px; border-radius: 12px; margin-bottom: 12px; font-size: 14px; color: #222; font-family: monospace;">
+                <span style="color: #06b6d4; font-weight: bold; margin-right: 8px;">[{{ loop.index }}]</span>
+                {{ ctx[:500] }}{% if ctx|length > 500 %}...{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
 </section>
 
 <!-- ══ FOOTER ═══════════════════════════════════════════════════ -->

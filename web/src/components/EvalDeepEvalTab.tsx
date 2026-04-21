@@ -43,22 +43,23 @@ export default function EvalDeepEvalTab() {
   const exportPdf = () => {
     if (!activeScan) return;
     setPdfLoading(true);
-    fetch(`/api/eval/export-pdf?scan=${encodeURIComponent(activeScan)}`)
+    fetch(`/api/eval/export-html?scan=${encodeURIComponent(activeScan)}`)
       .then(async (res) => {
         if (!res.ok) {
           const json = await res.json().catch(() => ({}));
           throw new Error((json as any).error || `HTTP ${res.status}`);
         }
-        return res.blob();
+        return res.text();
       })
-      .then((blob) => {
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `${activeScan}_report.pdf`;
-        a.click();
-        URL.revokeObjectURL(a.href);
+      .then((html) => {
+        // Open in new window for printing (like Red Team reports)
+        const w = window.open("", "_blank");
+        if (w) {
+          w.document.write(html);
+          w.document.close();
+        }
       })
-      .catch((err) => alert(`PDF export failed: ${err.message}`))
+      .catch((err) => alert(`HTML export failed: ${err instanceof Error ? err.message : String(err)}`))
       .finally(() => setPdfLoading(false));
   };
 
@@ -162,58 +163,72 @@ export default function EvalDeepEvalTab() {
 
   return (
     <div className="w-full space-y-10">
+      {/* Header + Actions */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 no-print">
+        <div>
+          <h1
+            suppressHydrationWarning
+            className="text-5xl font-extrabold tracking-tight text-[#222222] drop-shadow-sm"
+            style={{ fontFamily: "var(--font-outfit, Outfit)" }}
+          >
+            RAG Quality
+          </h1>
+          <p className="text-[#45515e] mt-2 text-lg font-medium opacity-80">
+            Оценка релевантности и фактологии
+          </p>
+        </div>
 
-      {/* Scan selector + actions */}
-      <div className="flex flex-col md:flex-row items-end md:items-center gap-3 no-print">
-        {data?.allScans && data.allScans.length > 0 && (
-          <div className="w-full md:w-[280px]">
-            <Select value={selectedScan} onValueChange={(val) => val && setSelectedScan(val)}>
-              <SelectTrigger className="bg-white border-[#e5e7eb] text-[#222222] shadow-[rgba(0,0,0,0.08)_0px_2px_4px] hover:shadow-[rgba(0,0,0,0.12)_0px_4px_8px] transition-all rounded-lg h-11 px-4 font-medium text-sm">
-                <SelectValue placeholder="Выберите скан" />
-              </SelectTrigger>
-              <SelectContent className="bg-white border-[#e5e7eb] text-[#222222] rounded-lg shadow-xl">
-                {data.allScans.map((scan: any) => (
-                  <SelectItem key={scan.value} value={scan.value} className="rounded-md">{scan.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="flex flex-col md:flex-row items-end md:items-center gap-3 pt-2">
+          {data?.allScans && data.allScans.length > 0 && (
+            <div className="w-full md:w-[240px]">
+              <Select value={selectedScan} onValueChange={(val) => val && setSelectedScan(val)}>
+                <SelectTrigger className="bg-white border-[#e5e7eb] text-[#222222] shadow-sm hover:shadow-md transition-all rounded-xl h-11 px-4 font-medium text-sm">
+                  <SelectValue placeholder="Последний скан" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-[#e5e7eb] text-[#222222] rounded-xl shadow-xl">
+                  {data.allScans.map((scan: any) => (
+                    <SelectItem key={scan.value} value={scan.value} className="rounded-md">{scan.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              className="border-[#e5e7eb] bg-white hover:bg-[#f2f3f5] text-[#222222] shadow-sm transition-all rounded-xl px-4 h-11 font-medium"
+              onClick={() => downloadFile("md")}
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              Отчёт MD
+            </Button>
+            <Button
+              variant="outline"
+              className="border-[#e5e7eb] bg-white hover:bg-[#f2f3f5] text-[#222222] shadow-sm transition-all rounded-xl px-4 h-11 font-medium"
+              onClick={() => downloadFile("csv")}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              CSV
+            </Button>
+            <Button
+              variant="outline"
+              className="border-[#e5e7eb] bg-white hover:bg-[#f2f3f5] text-[#222222] shadow-sm transition-all rounded-xl px-4 h-11 font-medium"
+              onClick={() => downloadFile("json")}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Логи
+            </Button>
+            <Button
+              variant="default"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md transition-all rounded-xl px-5 h-11 font-semibold disabled:opacity-50"
+              onClick={exportPdf}
+              disabled={pdfLoading || !activeScan}
+            >
+              <Printer className="w-4 h-4 mr-2" />
+              {pdfLoading ? "…" : "Печать PDF"}
+            </Button>
           </div>
-        )}
-
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            className="border-[#e5e7eb] bg-white hover:bg-[#f2f3f5] text-[#222222] shadow-[rgba(0,0,0,0.08)_0px_2px_4px] hover:shadow-[rgba(0,0,0,0.12)_0px_4px_8px] transition-all duration-200 rounded-lg px-5 py-2.5 font-medium"
-            onClick={() => downloadFile("md")}
-          >
-            <FileText className="w-4 h-4 mr-2" />
-            Отчёт MD
-          </Button>
-          <Button
-            variant="outline"
-            className="border-[#e5e7eb] bg-white hover:bg-[#f2f3f5] text-[#222222] shadow-[rgba(0,0,0,0.08)_0px_2px_4px] hover:shadow-[rgba(0,0,0,0.12)_0px_4px_8px] transition-all duration-200 rounded-lg px-5 py-2.5 font-medium"
-            onClick={() => downloadFile("csv")}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            CSV метрики
-          </Button>
-          <Button
-            variant="outline"
-            className="border-[#e5e7eb] bg-white hover:bg-[#f2f3f5] text-[#222222] shadow-[rgba(0,0,0,0.08)_0px_2px_4px] hover:shadow-[rgba(0,0,0,0.12)_0px_4px_8px] transition-all duration-200 rounded-lg px-5 py-2.5 font-medium"
-            onClick={() => downloadFile("json")}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Логи JSON
-          </Button>
-          <Button
-            variant="default"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 hover:shadow-xl hover:shadow-emerald-600/30 transition-all duration-200 rounded-lg px-5 py-2.5 font-semibold disabled:opacity-50"
-            onClick={exportPdf}
-            disabled={pdfLoading || !activeScan}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            {pdfLoading ? "Генерация…" : "Export PDF"}
-          </Button>
         </div>
       </div>
 

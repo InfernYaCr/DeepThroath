@@ -308,23 +308,24 @@ export default function EvalRagasTab() {
     const downloadPdf = () => {
         if (!activeScan) return;
         setPdfLoading(true);
-        const url = `/api/eval/export-pdf?scan=${encodeURIComponent(activeScan)}`;
+        const url = `/api/eval/export-html?scan=${encodeURIComponent(activeScan)}`;
         fetch(url)
             .then(async (res) => {
                 if (!res.ok) {
                     const json = await res.json().catch(() => ({}));
-                    throw new Error(json.error || `HTTP ${res.status}`);
+                    throw new Error((json as any).error || `HTTP ${res.status}`);
                 }
-                return res.blob();
+                return res.text();
             })
-            .then((blob) => {
-                const a = document.createElement("a");
-                a.href = URL.createObjectURL(blob);
-                a.download = `${activeScan}_report.pdf`;
-                a.click();
-                URL.revokeObjectURL(a.href);
+            .then((html) => {
+                // Open in new window for printing (like Red Team reports)
+                const w = window.open("", "_blank");
+                if (w) {
+                    w.document.write(html);
+                    w.document.close();
+                }
             })
-            .catch((err) => alert(`PDF export failed: ${err.message}`))
+            .catch((err) => alert(`HTML export failed: ${err instanceof Error ? err.message : String(err)}`))
             .finally(() => setPdfLoading(false));
     };
 
@@ -388,51 +389,67 @@ export default function EvalRagasTab() {
 
     return (
         <div className="w-full space-y-10">
-
-            {/* Scan selector + PDF export */}
-            {data?.allScans && data.allScans.length > 0 && (
-                <div className="flex items-center justify-end gap-3">
-                    <button
-                        onClick={downloadPdf}
-                        disabled={pdfLoading || !activeScan}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#e5e7eb] bg-white text-[#222222] text-sm font-medium hover:bg-[#f9fafb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            {/* Header + Actions */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 no-print">
+                <div>
+                    <h1
+                        suppressHydrationWarning
+                        className="text-5xl font-extrabold tracking-tight text-[#222222] drop-shadow-sm"
+                        style={{ fontFamily: "var(--font-outfit, Outfit)" }}
                     >
-                        <Download className="h-4 w-4" />
-                        {pdfLoading ? "Генерация…" : "Export PDF"}
-                    </button>
-                    <div className="w-80">
-                        <Select value={selectedScan} onValueChange={(val) => val && setSelectedScan(val)}>
-                            <SelectTrigger className="bg-white border-[#e5e7eb] text-[#222222] h-auto py-2">
-                                {(() => {
-                                    const lbl = data.allScans.find(s => s.value === activeScan)?.label ?? "Выберите прогон";
-                                    const dotIdx = lbl.indexOf("·");
-                                    if (dotIdx === -1) return <span className="text-sm">{lbl}</span>;
-                                    return (
-                                        <div className="text-left min-w-0 overflow-hidden">
-                                            <div className="text-sm font-medium leading-tight">{lbl.slice(0, dotIdx).trim()}</div>
-                                            <div className="text-xs text-[#8e8e93] truncate leading-tight">{lbl.slice(dotIdx + 1).trim()}</div>
-                                        </div>
-                                    );
-                                })()}
-                            </SelectTrigger>
-                            <SelectContent className="bg-white border-[#e5e7eb] text-[#222222]">
-                                {data.allScans.map((scan) => {
-                                    const dotIdx = scan.label.indexOf("·");
-                                    if (dotIdx === -1) return <SelectItem key={scan.value} value={scan.value}>{scan.label}</SelectItem>;
-                                    return (
-                                        <SelectItem key={scan.value} value={scan.value}>
-                                            <div>
-                                                <div className="text-sm font-medium">{scan.label.slice(0, dotIdx).trim()}</div>
-                                                <div className="text-xs text-[#8e8e93]">{scan.label.slice(dotIdx + 1).trim()}</div>
-                                            </div>
-                                        </SelectItem>
-                                    );
-                                })}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                        RAG Quality
+                    </h1>
+                    <p className="text-[#45515e] mt-2 text-lg font-medium opacity-80">
+                        Аналитика RAGAS: точность и релевантность
+                    </p>
                 </div>
-            )}
+
+                <div className="flex flex-col md:flex-row items-end md:items-center gap-3 pt-2">
+                    {data?.allScans && data.allScans.length > 0 && (
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={downloadPdf}
+                                disabled={pdfLoading || !activeScan}
+                                className="inline-flex items-center gap-1.5 px-4 h-11 rounded-xl border border-[#e5e7eb] bg-white text-[#222222] text-sm font-medium hover:bg-[#f9fafb] shadow-sm transition-all disabled:opacity-50"
+                            >
+                                <Download className="h-4 w-4" />
+                                {pdfLoading ? "…" : "Экспорт PDF"}
+                            </button>
+                            <div className="w-[280px]">
+                                <Select value={selectedScan} onValueChange={(val) => val && setSelectedScan(val)}>
+                                    <SelectTrigger className="bg-white border-[#e5e7eb] text-[#222222] shadow-sm hover:shadow-md transition-all rounded-xl h-11 px-4 font-medium text-sm">
+                                        {(() => {
+                                            const lbl = data.allScans.find(s => s.value === activeScan)?.label ?? "Последний скан";
+                                            const dotIdx = lbl.indexOf("·");
+                                            if (dotIdx === -1) return <span className="truncate">{lbl}</span>;
+                                            return (
+                                                <div className="text-left min-w-0 overflow-hidden">
+                                                    <div className="text-sm font-bold leading-tight truncate">{lbl.slice(0, dotIdx).trim()}</div>
+                                                    <div className="text-[10px] text-[#8e8e93] truncate leading-tight">{lbl.slice(dotIdx + 1).trim()}</div>
+                                                </div>
+                                            );
+                                        })()}
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-white border-[#e5e7eb] text-[#222222] rounded-xl shadow-xl">
+                                        {data.allScans.map((scan) => {
+                                            const dotIdx = scan.label.indexOf("·");
+                                            if (dotIdx === -1) return <SelectItem key={scan.value} value={scan.value} className="rounded-md">{scan.label}</SelectItem>;
+                                            return (
+                                                <SelectItem key={scan.value} value={scan.value} className="rounded-md">
+                                                    <div>
+                                                        <div className="text-sm font-medium">{scan.label.slice(0, dotIdx).trim()}</div>
+                                                        <div className="text-[10px] text-[#8e8e93]">{scan.label.slice(dotIdx + 1).trim()}</div>
+                                                    </div>
+                                                </SelectItem>
+                                            );
+                                        })}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
 
             {/* KPI cards — standard + custom, auto-discovered */}
             {stats && scoreKeys.length > 0 && (
