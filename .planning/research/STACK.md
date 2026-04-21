@@ -57,7 +57,7 @@ dataset = EvaluationDataset(samples=[sample, ...])
 
 **Текущий формат eval/results JSON:**
 ```
-session_id, top_k, category, intent, user_query, actual_answer, 
+session_id, top_k, category, intent, user_query, actual_answer,
 answer_relevancy_score, faithfulness_score, contextual_precision_score, contextual_recall_score
 ```
 
