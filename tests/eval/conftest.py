@@ -1,9 +1,10 @@
+import datetime
 import json
 import os
-import datetime
-import pytest
-import httpx
 from pathlib import Path
+
+import httpx
+import pytest
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent.parent.parent / "eval" / ".env")
@@ -11,8 +12,7 @@ load_dotenv(Path(__file__).parent.parent.parent / "eval" / ".env")
 BASE_URL = os.getenv("RAG_API_BASE_URL", "https://assist.dev.mglk.ru")
 
 DEFAULT_DATASET = (
-    Path(__file__).parent.parent.parent
-    / "eval" / "datasets" / "20260329_173829_exp_top_k_10_dataset.json"
+    Path(__file__).parent.parent.parent / "eval" / "datasets" / "20260329_173829_exp_top_k_10_dataset.json"
 )
 
 
@@ -43,12 +43,15 @@ def http_client(request) -> httpx.Client:
 def judge():
     """Судья из .env — тот же что использует eval_rag_metrics.py."""
     import sys
+
     sys.path.insert(0, str(Path(__file__).parent.parent.parent / "eval"))
     from eval_rag_metrics import build_judge
+
     return build_judge(verbose=True)
 
 
 # ── Session-level API response cache + log ───────────────────────────────────
+
 
 @pytest.fixture(scope="session")
 def _response_cache() -> dict:
@@ -94,10 +97,9 @@ def api_response(case, http_client, _response_cache, _api_log_store) -> dict:
             "/api/v1/eval/rag",
             json={"question": case["question"], "category": case["category"]},
         )
-        assert response.status_code == 200, (
-            f"[{case['category']}] \"{case['question']}\" "
-            f"→ HTTP {response.status_code}: {response.text[:300]}"
-        )
+        assert (
+            response.status_code == 200
+        ), f'[{case["category"]}] "{case["question"]}" → HTTP {response.status_code}: {response.text[:300]}'
         data = response.json()
         _response_cache[case_id] = data
 
@@ -108,8 +110,7 @@ def api_response(case, http_client, _response_cache, _api_log_store) -> dict:
             "answer": data.get("answer", ""),
             "chunks_count": data.get("chunks_count", len(data.get("retrieved_chunks", []))),
             "retrieved_chunks": [
-                {"content": c.get("content", ""), "score": c.get("score")}
-                for c in data.get("retrieved_chunks", [])
+                {"content": c.get("content", ""), "score": c.get("score")} for c in data.get("retrieved_chunks", [])
             ],
             "raw": data,
         }

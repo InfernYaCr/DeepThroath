@@ -25,16 +25,16 @@ EVAL_DIR = Path(__file__).parent
 TEMPLATES_DIR = EVAL_DIR / "templates"
 
 SCORE_KEYS = [
-    ("faithfulness_score",          "Faithfulness",      "Faith"),
-    ("answer_relevancy_score",      "Answer Relevancy",  "Relev"),
+    ("faithfulness_score", "Faithfulness", "Faith"),
+    ("answer_relevancy_score", "Answer Relevancy", "Relev"),
     # RAGAS key names
-    ("context_precision_score",     "Ctx Precision",     "Prec"),
-    ("context_recall_score",        "Ctx Recall",        "Recall"),
+    ("context_precision_score", "Ctx Precision", "Prec"),
+    ("context_recall_score", "Ctx Recall", "Recall"),
     # DeepEval key names (contextual_* prefix)
-    ("contextual_precision_score",  "Ctx Precision",     "Prec"),
-    ("contextual_recall_score",     "Ctx Recall",        "Recall"),
-    ("answer_correctness_score",    "Answer Correctness","Correct"),
-    ("completeness_score",          "Completeness",      "Compl"),
+    ("contextual_precision_score", "Ctx Precision", "Prec"),
+    ("contextual_recall_score", "Ctx Recall", "Recall"),
+    ("answer_correctness_score", "Answer Correctness", "Correct"),
+    ("completeness_score", "Completeness", "Compl"),
 ]
 
 
@@ -47,9 +47,7 @@ def _build_context(results_dir: Path, fail_below: Optional[float]) -> dict:
 
     # Detect which score keys are actually present
     present_keys = [
-        (key, label, short)
-        for key, label, short in SCORE_KEYS
-        if any(row.get(key) is not None for row in rows)
+        (key, label, short) for key, label, short in SCORE_KEYS if any(row.get(key) is not None for row in rows)
     ]
 
     # Build per-metric summaries
@@ -58,19 +56,18 @@ def _build_context(results_dir: Path, fail_below: Optional[float]) -> dict:
         values = [r[key] for r in rows if r.get(key) is not None]
         if not values:
             continue
-        metrics_summary.append({
-            "key": key,
-            "label": label,
-            "short": short,
-            "avg": sum(values) / len(values),
-            "min": min(values),
-            "max": max(values),
-        })
+        metrics_summary.append(
+            {
+                "key": key,
+                "label": label,
+                "short": short,
+                "avg": sum(values) / len(values),
+                "min": min(values),
+                "max": max(values),
+            }
+        )
 
-    overall_avg = (
-        sum(m["avg"] for m in metrics_summary) / len(metrics_summary)
-        if metrics_summary else 0.0
-    )
+    overall_avg = sum(m["avg"] for m in metrics_summary) / len(metrics_summary) if metrics_summary else 0.0
 
     threshold = fail_below if fail_below is not None else 0.70
     gate_passed = all(m["avg"] >= threshold for m in metrics_summary)
@@ -94,16 +91,13 @@ def _build_context(results_dir: Path, fail_below: Optional[float]) -> dict:
     }
 
 
-def export_pdf(results_dir: Path, out_path: Optional[Path] = None,
-               fail_below: Optional[float] = None) -> Path:
+def export_pdf(results_dir: Path, out_path: Optional[Path] = None, fail_below: Optional[float] = None) -> Path:
     """Render a branded PDF report and save it. Returns the output path."""
     try:
         from jinja2 import Environment, FileSystemLoader, select_autoescape
         from weasyprint import HTML
     except ImportError as exc:
-        raise RuntimeError(
-            "Missing dependency: pip install jinja2 weasyprint"
-        ) from exc
+        raise RuntimeError("Missing dependency: pip install jinja2 weasyprint") from exc
 
     ctx = _build_context(results_dir, fail_below)
 
@@ -126,8 +120,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Export branded RAG quality PDF report")
     parser.add_argument("results_dir", help="Path to results directory (contains metrics.json)")
     parser.add_argument("--out", default=None, help="Output PDF path (default: <results_dir>/report.pdf)")
-    parser.add_argument("--fail-below", type=float, default=None,
-                        help="Quality gate threshold 0–1 (default: 0.70)")
+    parser.add_argument("--fail-below", type=float, default=None, help="Quality gate threshold 0–1 (default: 0.70)")
     args = parser.parse_args()
 
     results_dir = Path(args.results_dir).expanduser().resolve()

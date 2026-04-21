@@ -8,18 +8,19 @@ API вызывается ОДИН раз на вопрос — ответ пер
   pytest tests/eval/ -v --dataset eval/datasets/my_dataset.json
   pytest tests/eval/ -v --api-url https://assist.dev.mglk.ru
 """
+
 import pytest
 from deepeval import assert_test
-from deepeval.test_case import LLMTestCase
 from deepeval.metrics import (
     AnswerRelevancyMetric,
-    FaithfulnessMetric,
     ContextualPrecisionMetric,
     ContextualRecallMetric,
+    FaithfulnessMetric,
 )
-
+from deepeval.test_case import LLMTestCase
 
 # ── Тест 1: Answer Relevancy ─────────────────────────────────────────────────
+
 
 def test_answer_relevancy(api_response, judge, case):
     tc = LLMTestCase(
@@ -32,6 +33,7 @@ def test_answer_relevancy(api_response, judge, case):
 
 
 # ── Тест 2: Faithfulness ─────────────────────────────────────────────────────
+
 
 def test_faithfulness(api_response, judge, case):
     chunks = [c["content"] for c in api_response.get("retrieved_chunks", [])]
@@ -46,6 +48,7 @@ def test_faithfulness(api_response, judge, case):
 
 
 # ── Тест 3: Contextual Precision ─────────────────────────────────────────────
+
 
 def test_contextual_precision(api_response, judge, case):
     chunks = [c["content"] for c in api_response.get("retrieved_chunks", [])]
@@ -62,6 +65,7 @@ def test_contextual_precision(api_response, judge, case):
 
 # ── Тест 4: Contextual Recall ─────────────────────────────────────────────────
 
+
 def test_contextual_recall(api_response, judge, case):
     chunks = [c["content"] for c in api_response.get("retrieved_chunks", [])]
     if not chunks:
@@ -77,6 +81,7 @@ def test_contextual_recall(api_response, judge, case):
 
 # ── Тест 5: Схема ответа ─────────────────────────────────────────────────────
 
+
 def test_response_schema(api_response, case):
     assert "answer" in api_response and api_response["answer"], "answer пустой"
     assert "retrieved_chunks" in api_response, "нет retrieved_chunks"
@@ -87,6 +92,7 @@ def test_response_schema(api_response, case):
 
 # ── Тест 6: Невалидный category → 422 ────────────────────────────────────────
 
+
 def test_invalid_category_returns_422(http_client):
     response = http_client.post(
         "/api/v1/eval/rag",
@@ -96,6 +102,7 @@ def test_invalid_category_returns_422(http_client):
 
 
 # ── Тест 7: Пустой вопрос ────────────────────────────────────────────────────
+
 
 def test_empty_question(http_client):
     response = http_client.post(

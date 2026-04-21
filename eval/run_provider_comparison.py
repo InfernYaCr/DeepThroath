@@ -149,7 +149,7 @@ def print_comparison_table(results: dict[str, dict[str, float]]) -> None:
             if v is None:
                 cell = "—"
             else:
-                pct = f"{v*100:.1f}%"
+                pct = f"{v * 100:.1f}%"
                 cell = f"*{pct}*" if v == best else pct
             row += f"{cell:^{col_w}}"
         print(row)
@@ -161,11 +161,13 @@ def print_comparison_table(results: dict[str, dict[str, float]]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run RAGAS with multiple judges and compare results")
     parser.add_argument("dataset", nargs="?", help="Path to dataset JSON or DeepEval results dir")
-    parser.add_argument("--judges", default=None,
-                        help="Comma-separated judge aliases from targets.yaml")
-    parser.add_argument("--framework", default="ragas",
-                        choices=["ragas", "deepeval", "both"],
-                        help="Eval framework to use (default: ragas)")
+    parser.add_argument("--judges", default=None, help="Comma-separated judge aliases from targets.yaml")
+    parser.add_argument(
+        "--framework",
+        default="ragas",
+        choices=["ragas", "deepeval", "both"],
+        help="Eval framework to use (default: ragas)",
+    )
     parser.add_argument("--limit", type=int, default=None, help="Limit records per run")
     parser.add_argument("--list-judges", action="store_true", help="List available judges and exit")
     parser.add_argument("--python", default=None, help="Python binary (default: venv or python3)")
@@ -214,10 +216,7 @@ def main() -> None:
     # Run all jobs in parallel
     results: dict[str, dict[str, float]] = {}
     with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
-        futures = {
-            pool.submit(run_judge, dataset, alias, args.limit, python, fw): (alias, fw)
-            for alias, fw in jobs
-        }
+        futures = {pool.submit(run_judge, dataset, alias, args.limit, python, fw): (alias, fw) for alias, fw in jobs}
         for future in as_completed(futures):
             label, run_dir_str = future.result()
             if run_dir_str:

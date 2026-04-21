@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
 """CLI entry point for red team scans. Used by CI/CD and manual runs."""
+
 import argparse
+import json
 import os
 import sys
-import json
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import yaml
 from dotenv import load_dotenv
-
-load_dotenv()
+from pydantic import BaseModel, ValidationError
 
 from src.data.storage import save_results
 from src.data.transformer import transform_risk_assessment
@@ -19,8 +17,9 @@ from src.red_team.attacks import AttackConfig, VulnerabilityConfig
 from src.red_team.judges import register_custom_presets
 from src.red_team.runner import run
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from pydantic import BaseModel, ValidationError
+load_dotenv()
 
 
 class _AttackEntry(BaseModel):
@@ -83,10 +82,7 @@ def _find_target(targets_path: str, name: str) -> dict:
         if t["name"] == name:
             return t
     available = [t["name"] for t in targets]
-    raise ValueError(
-        f"Target '{name}' not found in {targets_path}\n"
-        f"  Available targets: {', '.join(available)}"
-    )
+    raise ValueError(f"Target '{name}' not found in {targets_path}\n  Available targets: {', '.join(available)}")
 
 
 def run_redteam_scan(
@@ -97,7 +93,7 @@ def run_redteam_scan(
     targets_path: str = "config/targets.yaml",
     model_override: str | None = None,
     output_dir: str | None = None,
-    judge_preset: str | None = None
+    judge_preset: str | None = None,
 ) -> Path:
     """
     Запуск Red Team сканирования (callable from FastAPI).
@@ -202,7 +198,8 @@ def main() -> None:
     parser.add_argument("--model", default=None, help="Override target model")
     parser.add_argument("--output", default=None, help="Override RESULTS_DIR")
     parser.add_argument(
-        "--judge", default=None,
+        "--judge",
+        default=None,
         help="Judge preset: gpt-4o-mini, gemini-flash, llama3-70b, haiku, ollama-llama, ollama-mistral, ollama-phi",
     )
     parser.add_argument("--dynamic-api-config", default=None, help="Path to dynamic API contract JSON")
@@ -296,11 +293,12 @@ def main() -> None:
             targets_path=args.targets,
             model_override=args.model,
             output_dir=args.output,
-            judge_preset=args.judge
+            judge_preset=args.judge,
         )
 
         # Check ASR threshold for CLI exit code
         import pandas as pd
+
         df = pd.read_parquet(output_path)
         overall_asr = float(df["asr"].mean())
 

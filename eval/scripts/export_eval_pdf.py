@@ -17,11 +17,12 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.reports.pdf_export import render_html_report, export_pdf
+from src.reports.pdf_export import export_pdf
 
 
-def calculate_overall_score(ar_avg: float | None, fa_avg: float | None,
-                             cp_avg: float | None, cr_avg: float | None) -> int:
+def calculate_overall_score(
+    ar_avg: float | None, fa_avg: float | None, cp_avg: float | None, cr_avg: float | None
+) -> int:
     """Calculate overall quality score (0-100) weighted by metric importance."""
     scores = []
     weights = []
@@ -30,15 +31,15 @@ def calculate_overall_score(ar_avg: float | None, fa_avg: float | None,
         scores.append(ar_avg)
         weights.append(0.4)  # Answer Relevancy — most important
 
-    if fa_avg is not none:
+    if fa_avg is not None:
         scores.append(fa_avg)
         weights.append(0.3)  # Faithfulness — second most important
 
-    if cp_avg is not none:
+    if cp_avg is not None:
         scores.append(cp_avg)
         weights.append(0.15)  # Precision
 
-    if cr_avg is not none:
+    if cr_avg is not None:
         scores.append(cr_avg)
         weights.append(0.15)  # Recall
 
@@ -49,7 +50,7 @@ def calculate_overall_score(ar_avg: float | None, fa_avg: float | None,
     total_weight = sum(weights)
     weights = [w / total_weight for w in weights]
 
-    weighted_avg = sum(s * w for s, w in zip(scores, weights))
+    weighted_avg = sum(s * w for s, w in zip(scores, weights, strict=True))
     return int(weighted_avg * 100)
 
 
@@ -81,7 +82,9 @@ def prepare_context(results_dir: Path) -> dict:
     # Calculate aggregated metrics
     ar_scores = [r["answer_relevancy_score"] for r in metrics if r.get("answer_relevancy_score") is not None]
     fa_scores = [r["faithfulness_score"] for r in metrics if r.get("faithfulness_score") is not None]
-    cp_scores = [r.get("contextual_precision_score") for r in metrics if r.get("contextual_precision_score") is not None]
+    cp_scores = [
+        r.get("contextual_precision_score") for r in metrics if r.get("contextual_precision_score") is not None
+    ]
     cr_scores = [r.get("contextual_recall_score") for r in metrics if r.get("contextual_recall_score") is not None]
 
     def safe_avg(scores):
@@ -110,6 +113,7 @@ def prepare_context(results_dir: Path) -> dict:
 
     # Category statistics
     from collections import defaultdict
+
     category_data = defaultdict(lambda: {"count": 0, "ar_scores": [], "fa_scores": []})
 
     for r in metrics:
@@ -122,40 +126,44 @@ def prepare_context(results_dir: Path) -> dict:
 
     category_stats = []
     for cat, data in sorted(category_data.items()):
-        category_stats.append({
-            "category": cat,
-            "count": data["count"],
-            "ar_avg": safe_avg(data["ar_scores"]),
-            "ar_pass_rate": safe_pass_rate(data["ar_scores"], ar_threshold),
-            "fa_avg": safe_avg(data["fa_scores"]),
-        })
+        category_stats.append(
+            {
+                "category": cat,
+                "count": data["count"],
+                "ar_avg": safe_avg(data["ar_scores"]),
+                "ar_pass_rate": safe_pass_rate(data["ar_scores"], ar_threshold),
+                "fa_avg": safe_avg(data["fa_scores"]),
+            }
+        )
 
     # Top records (best and worst examples)
     sorted_by_ar = sorted(
         [r for r in metrics if r.get("answer_relevancy_score") is not None],
         key=lambda x: x["answer_relevancy_score"],
-        reverse=True
+        reverse=True,
     )
 
     top_records = []
     # Take top 5 best and top 5 worst
-    for r in (sorted_by_ar[:5] + sorted_by_ar[-5:]):
-        top_records.append({
-            "id": r.get("id", "Unknown"),
-            "category": r.get("category", "Unknown"),
-            "query": r.get("user_query", ""),
-            "expected_answer": r.get("expected_answer", ""),
-            "actual_answer": r.get("actual_answer", ""),
-            "ar_score": r.get("answer_relevancy_score"),
-            "ar_passed": r.get("answer_relevancy_passed", False),
-            "ar_reason": r.get("answer_relevancy_reason", ""),
-            "fa_score": r.get("faithfulness_score"),
-            "fa_passed": r.get("faithfulness_passed", False),
-            "cp_score": r.get("contextual_precision_score"),
-            "cp_passed": r.get("contextual_precision_passed", False),
-            "cr_score": r.get("contextual_recall_score"),
-            "cr_passed": r.get("contextual_recall_passed", False),
-        })
+    for r in sorted_by_ar[:5] + sorted_by_ar[-5:]:
+        top_records.append(
+            {
+                "id": r.get("id", "Unknown"),
+                "category": r.get("category", "Unknown"),
+                "query": r.get("user_query", ""),
+                "expected_answer": r.get("expected_answer", ""),
+                "actual_answer": r.get("actual_answer", ""),
+                "ar_score": r.get("answer_relevancy_score"),
+                "ar_passed": r.get("answer_relevancy_passed", False),
+                "ar_reason": r.get("answer_relevancy_reason", ""),
+                "fa_score": r.get("faithfulness_score"),
+                "fa_passed": r.get("faithfulness_passed", False),
+                "cp_score": r.get("contextual_precision_score"),
+                "cp_passed": r.get("contextual_precision_passed", False),
+                "cr_score": r.get("contextual_recall_score"),
+                "cr_passed": r.get("contextual_recall_passed", False),
+            }
+        )
 
     # Build context
     dataset_name = meta.get("dataset", results_dir.name)
@@ -170,7 +178,7 @@ def prepare_context(results_dir: Path) -> dict:
     try:
         dt = datetime.strptime(timestamp, "%Y%m%d_%H%M%S")
         generated_at = dt.strftime("%d.%m.%Y %H:%M")
-    except:
+    except Exception:
         generated_at = timestamp
 
     context = {
@@ -178,7 +186,6 @@ def prepare_context(results_dir: Path) -> dict:
         "client_name": "Внутренняя оценка качества",
         "overall_score": overall_score,
         "score_delta": None,  # TODO: compare with previous run
-
         # Meta
         "dataset_name": dataset_name,
         "judge_version": judge_version,
@@ -186,32 +193,27 @@ def prepare_context(results_dir: Path) -> dict:
         "total_records": len(metrics),
         "skipped_count": meta.get("total_records", len(metrics)) - len(metrics),
         "passed_count": ar_pass_count,
-
         # Metrics
         "ar_avg": ar_avg,
         "ar_threshold": ar_threshold,
         "ar_total": len(ar_scores),
         "ar_pass_count": ar_pass_count,
         "ar_pass_rate": safe_pass_rate(ar_scores, ar_threshold),
-
         "fa_avg": fa_avg,
         "fa_threshold": fa_threshold,
         "fa_total": len(fa_scores),
         "fa_pass_count": fa_pass_count,
         "fa_pass_rate": safe_pass_rate(fa_scores, fa_threshold),
-
         "cp_avg": cp_avg,
         "cp_threshold": cp_threshold,
         "cp_total": len(cp_scores),
         "cp_pass_count": cp_pass_count,
         "cp_pass_rate": safe_pass_rate(cp_scores, cp_threshold),
-
         "cr_avg": cr_avg,
         "cr_threshold": cr_threshold,
         "cr_total": len(cr_scores),
         "cr_pass_count": cr_pass_count,
         "cr_pass_rate": safe_pass_rate(cr_scores, cr_threshold),
-
         # Detailed data
         "category_stats": category_stats,
         "top_records": top_records,
@@ -233,9 +235,10 @@ def main():
     print(f"[+] Loading results from {results_dir}")
     context = prepare_context(results_dir)
 
-    print(f"[+] Rendering HTML report...")
+    print("[+] Rendering HTML report...")
     # Use custom template for eval
     from jinja2 import Environment, FileSystemLoader, select_autoescape
+
     templates_dir = Path(__file__).parent.parent.parent / "src" / "reports" / "templates"
     env = Environment(
         loader=FileSystemLoader(str(templates_dir)),
@@ -245,7 +248,7 @@ def main():
     template = env.get_template("eval_report.html")
     html = template.render(**context)
 
-    print(f"[+] Generating PDF...")
+    print("[+] Generating PDF...")
     pdf_bytes = export_pdf(html)
 
     output_path = results_dir / "report.pdf"
@@ -253,9 +256,13 @@ def main():
 
     print(f"[✓] PDF report saved to {output_path}")
     print(f"    Overall Score: {context['overall_score']}/100")
-    print(f"    Answer Relevancy: {context['ar_avg'] * 100:.1f}% ({context['ar_pass_count']}/{context['ar_total']} passed)")
-    if context['fa_avg'] is not None:
-        print(f"    Faithfulness: {context['fa_avg'] * 100:.1f}% ({context['fa_pass_count']}/{context['fa_total']} passed)")
+    print(
+        f"    Answer Relevancy: {context['ar_avg'] * 100:.1f}% ({context['ar_pass_count']}/{context['ar_total']} passed)"
+    )
+    if context["fa_avg"] is not None:
+        print(
+            f"    Faithfulness: {context['fa_avg'] * 100:.1f}% ({context['fa_pass_count']}/{context['fa_total']} passed)"
+        )
 
 
 if __name__ == "__main__":

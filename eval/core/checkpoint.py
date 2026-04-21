@@ -1,11 +1,13 @@
 import json
 import threading
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
+
 
 def checkpoint_path(run_dir: Path) -> Path:
     """Возвращает путь к файлу чекпоинта."""
     return run_dir / "checkpoint.json"
+
 
 def load_checkpoint(run_dir: Path) -> Dict[str, Any]:
     """Возвращает уже обработанные записи {session_id: result} из файла чекпоинта."""
@@ -21,6 +23,7 @@ def load_checkpoint(run_dir: Path) -> Dict[str, Any]:
             return {}
     return {}
 
+
 def save_checkpoint(run_dir: Path, done: Dict[str, Any], lock: threading.Lock):
     """Безопасно сохраняет чекпоинт (thread-safe)."""
     with lock:
@@ -29,6 +32,7 @@ def save_checkpoint(run_dir: Path, done: Dict[str, Any], lock: threading.Lock):
                 json.dump(done, f, ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"[ERROR] Не удалось сохранить чекпоинт: {e}")
+
 
 def clear_checkpoint(run_dir: Path):
     """Удаляет файл чекпоинта."""

@@ -26,14 +26,14 @@ export async function GET(request: Request) {
 
     let projectRoot = process.cwd();
     let resultsDir = path.join(projectRoot, 'results');
-    
+
     if (!fs.existsSync(resultsDir)) {
         projectRoot = path.join(process.cwd(), '..');
         resultsDir = path.join(projectRoot, 'results');
     }
-    
+
     const historyDir = path.join(resultsDir, 'history');
-    
+
     // Check if latest.parquet exists
     const latestPath = path.join(resultsDir, 'latest.parquet');
     if (!fs.existsSync(latestPath)) {
@@ -47,7 +47,7 @@ export async function GET(request: Request) {
     if (fs.existsSync(historyDir) && fs.readdirSync(historyDir).filter(f => f.endsWith('.parquet')).length > 0) {
         try {
             const result = await connection.run(`
-            SELECT 
+            SELECT
                 timestamp,
                 SUM(CAST(failed AS INT)) AS failed,
                 SUM(CAST(total AS INT)) AS total,

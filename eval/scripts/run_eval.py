@@ -12,6 +12,7 @@ Offline (батч из файла, только AR если нет retrieval_con
   --judge qwen-235b-or    Выбрать судью
   --workers 3             Уменьшить параллелизм
 """
+
 import argparse
 import sys
 from pathlib import Path
@@ -40,10 +41,7 @@ def _find_target(targets_path: Path, name: str) -> dict:
         if t["name"] == name:
             return t
     available = [t["name"] for t in targets]
-    raise ValueError(
-        f"Target '{name}' not found in {targets_path}\n"
-        f"  Available judges: {', '.join(available)}"
-    )
+    raise ValueError(f"Target '{name}' not found in {targets_path}\n  Available judges: {', '.join(available)}")
 
 
 def run_eval_scan(
@@ -52,7 +50,7 @@ def run_eval_scan(
     metrics: list[str] | None = None,
     n_samples: int = 50,
     api_contract: dict | None = None,
-    progress_callback: callable | None = None
+    progress_callback: callable | None = None,
 ) -> Path:
     """
     Запуск RAG Evaluation (callable from FastAPI).
@@ -76,7 +74,7 @@ def run_eval_scan(
     dataset_str = str(dataset)
     if not dataset_str.endswith(".json"):
         dataset_str += ".json"
-        
+
     dataset_path = Path(dataset_str)
     if not dataset_path.is_absolute():
         project_root = eval_dir.parent
@@ -96,7 +94,7 @@ def run_eval_scan(
     try:
         target = _find_target(default_targets, model)
     except ValueError as e:
-        raise ValueError(f"Judge model not found: {e}")
+        raise ValueError(f"Judge model not found: {e}") from e
 
     threshold = target.get("threshold", 0.7)
     provider = target["provider"]
@@ -142,26 +140,32 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run RAG eval pipeline")
     parser.add_argument("--input", required=True, help="Path to input JSON file")
     parser.add_argument(
-        "--judge", default=None,
+        "--judge",
+        default=None,
         help="Judge target name from targets.yaml (e.g. gpt4o-mini-or, gemini-flash)",
     )
     parser.add_argument("--workers", type=int, default=None, help="Override max_workers")
     parser.add_argument("--config", default=str(default_config), help="Path to eval_config.yaml")
     parser.add_argument("--targets", default=str(default_targets), help="Path to targets.yaml")
     parser.add_argument(
-        "--online", action="store_true",
+        "--online",
+        action="store_true",
         help="Онлайн-режим: вызывать живой API для получения ответов и чанков",
     )
     parser.add_argument(
-        "--dynamic-api-config", default=None,
+        "--dynamic-api-config",
+        default=None,
         help="Путь к JSON-файлу с настройками динамического API-контракта",
     )
     parser.add_argument(
-        "--api-url", default=None,
+        "--api-url",
+        default=None,
         help="URL живого RAG API (по умолчанию RAG_API_BASE_URL из env или https://assist.dev.mglk.ru)",
     )
     parser.add_argument(
-        "--limit", type=int, default=None,
+        "--limit",
+        type=int,
+        default=None,
         help="Обработать только первые N записей (для быстрой проверки)",
     )
     args = parser.parse_args()
@@ -181,22 +185,18 @@ def main() -> None:
     provider = target["provider"]
     model = target["model"]
 
-    import os as _os
     import json
-    
+    import os as _os
+
     api_url = None
     api_config_dict = None
-    
+
     if args.dynamic_api_config:
         with open(args.dynamic_api_config, "r", encoding="utf-8") as f:
             api_config_dict = json.load(f)
         mode = "динамический API"
     elif args.online:
-        api_url = (
-            args.api_url
-            or _os.getenv("RAG_API_BASE_URL")
-            or "https://assist.dev.mglk.ru"
-        )
+        api_url = args.api_url or _os.getenv("RAG_API_BASE_URL") or "https://assist.dev.mglk.ru"
         mode = f"онлайн ({api_url})"
     else:
         mode = "офлайн"

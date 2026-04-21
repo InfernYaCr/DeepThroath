@@ -22,16 +22,16 @@ EVAL_DIR = Path(__file__).parent
 TEMPLATES_DIR = EVAL_DIR / "templates"
 
 SCORE_KEYS = [
-    ("faithfulness_score",          "Faithfulness",      "Faith"),
-    ("answer_relevancy_score",      "Answer Relevancy",  "Relev"),
+    ("faithfulness_score", "Faithfulness", "Faith"),
+    ("answer_relevancy_score", "Answer Relevancy", "Relev"),
     # RAGAS key names
-    ("context_precision_score",     "Ctx Precision",     "Prec"),
-    ("context_recall_score",        "Ctx Recall",        "Recall"),
+    ("context_precision_score", "Ctx Precision", "Prec"),
+    ("context_recall_score", "Ctx Recall", "Recall"),
     # DeepEval key names (contextual_* prefix)
-    ("contextual_precision_score",  "Ctx Precision",     "Prec"),
-    ("contextual_recall_score",     "Ctx Recall",        "Recall"),
-    ("answer_correctness_score",    "Answer Correctness","Correct"),
-    ("completeness_score",          "Completeness",      "Compl"),
+    ("contextual_precision_score", "Ctx Precision", "Prec"),
+    ("contextual_recall_score", "Ctx Recall", "Recall"),
+    ("answer_correctness_score", "Answer Correctness", "Correct"),
+    ("completeness_score", "Completeness", "Compl"),
 ]
 
 
@@ -44,9 +44,7 @@ def _build_context(results_dir: Path, fail_below: Optional[float]) -> dict:
 
     # Detect which score keys are actually present
     present_keys = [
-        (key, label, short)
-        for key, label, short in SCORE_KEYS
-        if any(row.get(key) is not None for row in rows)
+        (key, label, short) for key, label, short in SCORE_KEYS if any(row.get(key) is not None for row in rows)
     ]
 
     # Build per-metric summaries
@@ -55,19 +53,18 @@ def _build_context(results_dir: Path, fail_below: Optional[float]) -> dict:
         values = [r[key] for r in rows if r.get(key) is not None]
         if not values:
             continue
-        metrics_summary.append({
-            "key": key,
-            "label": label,
-            "short": short,
-            "avg": sum(values) / len(values),
-            "min": min(values),
-            "max": max(values),
-        })
+        metrics_summary.append(
+            {
+                "key": key,
+                "label": label,
+                "short": short,
+                "avg": sum(values) / len(values),
+                "min": min(values),
+                "max": max(values),
+            }
+        )
 
-    overall_avg = (
-        sum(m["avg"] for m in metrics_summary) / len(metrics_summary)
-        if metrics_summary else 0.0
-    )
+    overall_avg = sum(m["avg"] for m in metrics_summary) / len(metrics_summary) if metrics_summary else 0.0
 
     threshold = fail_below if fail_below is not None else 0.70
     gate_passed = all(m["avg"] >= threshold for m in metrics_summary)
@@ -96,9 +93,7 @@ def export_html(results_dir: Path, fail_below: Optional[float] = None) -> str:
     try:
         from jinja2 import Environment, FileSystemLoader, select_autoescape
     except ImportError as exc:
-        raise RuntimeError(
-            "Missing dependency: pip install jinja2"
-        ) from exc
+        raise RuntimeError("Missing dependency: pip install jinja2") from exc
 
     ctx = _build_context(results_dir, fail_below)
 
@@ -117,10 +112,7 @@ def export_html(results_dir: Path, fail_below: Optional[float] = None) -> str:
     if css_path.exists():
         css_content = css_path.read_text(encoding="utf-8")
         # Replace <link rel="stylesheet"> with inline <style>
-        html_str = html_str.replace(
-            '<link rel="stylesheet" href="rag_report.css">',
-            f'<style>{css_content}</style>'
-        )
+        html_str = html_str.replace('<link rel="stylesheet" href="rag_report.css">', f"<style>{css_content}</style>")
 
     # Add print button script
     print_script = """
@@ -155,7 +147,7 @@ window.addEventListener('load', () => {
 });
 </script>
 """
-    html_str = html_str.replace('</body>', f'{print_script}</body>')
+    html_str = html_str.replace("</body>", f"{print_script}</body>")
 
     return html_str
 
@@ -163,15 +155,14 @@ window.addEventListener('load', () => {
 def main() -> None:
     parser = argparse.ArgumentParser(description="Export RAG quality HTML report (for browser printing)")
     parser.add_argument("results_dir", help="Path to results directory (contains metrics.json)")
-    parser.add_argument("--fail-below", type=float, default=None,
-                        help="Quality gate threshold 0–1 (default: 0.70)")
+    parser.add_argument("--fail-below", type=float, default=None, help="Quality gate threshold 0–1 (default: 0.70)")
     args = parser.parse_args()
 
     results_dir = Path(args.results_dir).expanduser().resolve()
 
     try:
         html = export_html(results_dir, args.fail_below)
-        print(html, end='')  # stdout for piping to Next.js
+        print(html, end="")  # stdout for piping to Next.js
     except FileNotFoundError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         sys.exit(1)

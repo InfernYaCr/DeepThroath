@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import logging
 import os
 import subprocess
@@ -37,6 +36,7 @@ import yaml
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv(Path(__file__).parent.parent / ".env")
     load_dotenv(Path(__file__).parent.parent / "eval" / ".env")
 except ImportError:
@@ -44,12 +44,14 @@ except ImportError:
 
 try:
     import httpx
+
     _HAS_HTTPX = True
 except ImportError:
     _HAS_HTTPX = False
 
 try:
     from croniter import croniter
+
     _HAS_CRONITER = True
 except ImportError:
     _HAS_CRONITER = False
@@ -67,12 +69,14 @@ DEFAULT_CONFIG = PROJECT_ROOT / "config" / "scheduler.yaml"
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
+
 def load_config(path: Path) -> dict:
     with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
 # ── Telegram ──────────────────────────────────────────────────────────────────
+
 
 async def send_telegram(token: str, chat_id: str, text: str) -> bool:
     """Send a Telegram message. Returns True on success."""
@@ -130,7 +134,7 @@ def format_telegram_message(
         lines.append(f"  Порог: {fail_below * 100:.0f}%")
 
     if error:
-        lines.extend(["", f"⚠️ <b>Ошибка:</b>", f"<code>{error[:300]}</code>"])
+        lines.extend(["", "⚠️ <b>Ошибка:</b>", f"<code>{error[:300]}</code>"])
 
     if results_dir:
         lines.extend(["", f"📁 <code>{results_dir.name}</code>"])
@@ -140,7 +144,10 @@ def format_telegram_message(
 
 # ── Run eval ──────────────────────────────────────────────────────────────────
 
-def run_eval(cfg: dict, limit_override: Optional[int] = None) -> tuple[bool, dict[str, float], Optional[Path], Optional[str]]:
+
+def run_eval(
+    cfg: dict, limit_override: Optional[int] = None
+) -> tuple[bool, dict[str, float], Optional[Path], Optional[str]]:
     """
     Run the configured eval pipeline as a subprocess.
     Returns: (passed, metrics_summary, results_dir, error_message)
@@ -214,8 +221,10 @@ def run_eval(cfg: dict, limit_override: Optional[int] = None) -> tuple[bool, dic
 
 # ── Notification dispatch ──────────────────────────────────────────────────────
 
-async def notify(cfg: dict, passed: bool, metrics: dict, results_dir: Optional[Path],
-                 error: Optional[str], duration: float) -> None:
+
+async def notify(
+    cfg: dict, passed: bool, metrics: dict, results_dir: Optional[Path], error: Optional[str], duration: float
+) -> None:
     notif_cfg = cfg.get("notifications", {})
     tg_cfg = notif_cfg.get("telegram", {})
 
@@ -254,6 +263,7 @@ async def notify(cfg: dict, passed: bool, metrics: dict, results_dir: Optional[P
 
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
+
 
 async def run_once(cfg: dict, limit_override: Optional[int] = None) -> bool:
     log.info("Starting eval run...")

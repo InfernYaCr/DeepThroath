@@ -46,6 +46,7 @@ def load_history() -> pd.DataFrame:
                 frames.append(df)
         except Exception as e:
             import logging
+
             logging.warning(f"[storage] Skipping broken history file {f.name}: {e}")
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
@@ -64,13 +65,13 @@ def list_scan_files() -> list[dict]:
             df = pd.read_parquet(f)
             ts = df["timestamp"].iloc[0][:16].replace("T", " ") if "timestamp" in df.columns else f.stem
             model = df["model_version"].iloc[0] if "model_version" in df.columns else "unknown"
-            judge = df["judge_version"].iloc[0] if "judge_version" in df.columns else "N/A"
             total = int(df["total"].sum())
             failed = int(df["failed"].sum())
             label = f"{ts} | {model} | {failed}/{total} провалено"
             result.append({"path": f, "label": label, "df": df})
         except Exception as e:
             import logging
+
             logging.warning(f"[storage] Skipping broken scan file {f.name}: {e}")
             continue
     return result

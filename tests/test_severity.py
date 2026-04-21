@@ -1,5 +1,4 @@
 """Tests for src/red_team/severity.py"""
-import pytest
 
 from src.red_team.severity import (
     OWASP_REGISTRY,
@@ -7,15 +6,27 @@ from src.red_team.severity import (
     get_owasp_category,
 )
 
-
 # --- Registry completeness ---
+
 
 def test_registry_has_known_vulnerabilities():
     expected = [
-        "PromptInjection", "ExcessiveAgency", "PromptLeakage",
-        "PIILeakage", "Toxicity", "Bias", "IllegalActivity",
-        "SQLInjection", "SSRF", "ShellInjection", "BOLA", "BFLA", "RBAC",
-        "ChildProtection", "Ethics", "Fairness",
+        "PromptInjection",
+        "ExcessiveAgency",
+        "PromptLeakage",
+        "PIILeakage",
+        "Toxicity",
+        "Bias",
+        "IllegalActivity",
+        "SQLInjection",
+        "SSRF",
+        "ShellInjection",
+        "BOLA",
+        "BFLA",
+        "RBAC",
+        "ChildProtection",
+        "Ethics",
+        "Fairness",
     ]
     for name in expected:
         assert name in OWASP_REGISTRY, f"{name} missing from OWASP_REGISTRY"
@@ -31,6 +42,7 @@ def test_all_registry_entries_have_required_fields():
 
 
 # --- get_owasp_category ---
+
 
 def test_exact_match():
     cat = get_owasp_category("PromptInjection")
@@ -75,10 +87,19 @@ def test_unknown_subtype_returns_fallback():
 
 
 def test_critical_severities():
-    critical = ["PromptInjection", "ExcessiveAgency", "IllegalActivity",
-                "SQLInjection", "ShellInjection", "SSRF", "ChildProtection",
-                "PersonalSafety", "UnexpectedCodeExecution", "RecursiveHijacking",
-                "ExploitToolAgent"]
+    critical = [
+        "PromptInjection",
+        "ExcessiveAgency",
+        "IllegalActivity",
+        "SQLInjection",
+        "ShellInjection",
+        "SSRF",
+        "ChildProtection",
+        "PersonalSafety",
+        "UnexpectedCodeExecution",
+        "RecursiveHijacking",
+        "ExploitToolAgent",
+    ]
     for name in critical:
         cat = get_owasp_category(name)
         assert cat.severity == Severity.CRITICAL, f"{name} should be CRITICAL"

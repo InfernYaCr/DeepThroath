@@ -1,6 +1,4 @@
 """Tests for src/data/storage.py"""
-import os
-from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -11,8 +9,8 @@ def results_dir(tmp_path, monkeypatch):
     """Redirect storage module to a temp directory."""
     monkeypatch.setenv("RESULTS_DIR", str(tmp_path))
     # Re-import with patched env so module-level paths are recalculated
-    import importlib
     import src.data.storage as storage
+
     storage.RESULTS_DIR = tmp_path
     storage.LATEST_FILE = tmp_path / "latest.parquet"
     storage.HISTORY_DIR = tmp_path / "history"
@@ -21,30 +19,36 @@ def results_dir(tmp_path, monkeypatch):
 
 @pytest.fixture()
 def sample_df():
-    return pd.DataFrame([{
-        "vulnerability": "PromptLeakageType.INSTRUCTIONS",
-        "owasp_id": "LLM07",
-        "owasp_name": "Утечка системного промпта",
-        "severity": "High",
-        "pass_rate": 1.0,
-        "asr": 0.0,
-        "passed": 1,
-        "failed": 0,
-        "errored": 0,
-        "total": 1,
-        "attack_type": "PromptInjection",
-        "model_version": "qwen/qwen-2.5-7b-instruct",
-        "judge_version": "gpt-4o-mini",
-        "session_id": "",
-        "timestamp": "2026-03-31T12:00:00+00:00",
-        "conversations": "[]",
-    }])
+    return pd.DataFrame(
+        [
+            {
+                "vulnerability": "PromptLeakageType.INSTRUCTIONS",
+                "owasp_id": "LLM07",
+                "owasp_name": "Утечка системного промпта",
+                "severity": "High",
+                "pass_rate": 1.0,
+                "asr": 0.0,
+                "passed": 1,
+                "failed": 0,
+                "errored": 0,
+                "total": 1,
+                "attack_type": "PromptInjection",
+                "model_version": "qwen/qwen-2.5-7b-instruct",
+                "judge_version": "gpt-4o-mini",
+                "session_id": "",
+                "timestamp": "2026-03-31T12:00:00+00:00",
+                "conversations": "[]",
+            }
+        ]
+    )
 
 
 # --- save_results ---
 
+
 def test_save_results_creates_latest(results_dir, sample_df):
     from src.data.storage import save_results
+
     path = save_results(sample_df)
     assert path.exists()
     assert path.name == "latest.parquet"
@@ -52,13 +56,15 @@ def test_save_results_creates_latest(results_dir, sample_df):
 
 def test_save_results_creates_history_file(results_dir, sample_df):
     from src.data.storage import save_results
+
     save_results(sample_df)
     history_files = list((results_dir / "history").glob("*.parquet"))
     assert len(history_files) == 1
 
 
 def test_save_results_roundtrip(results_dir, sample_df):
-    from src.data.storage import save_results, load_latest
+    from src.data.storage import load_latest, save_results
+
     save_results(sample_df)
     loaded = load_latest()
     assert loaded is not None
@@ -68,13 +74,16 @@ def test_save_results_roundtrip(results_dir, sample_df):
 
 # --- load_latest ---
 
+
 def test_load_latest_returns_none_when_missing(results_dir):
     from src.data.storage import load_latest
+
     assert load_latest() is None
 
 
 def test_load_latest_returns_dataframe(results_dir, sample_df):
-    from src.data.storage import save_results, load_latest
+    from src.data.storage import load_latest, save_results
+
     save_results(sample_df)
     result = load_latest()
     assert isinstance(result, pd.DataFrame)
@@ -83,15 +92,18 @@ def test_load_latest_returns_dataframe(results_dir, sample_df):
 
 # --- load_history ---
 
+
 def test_load_history_empty_when_no_dir(results_dir):
     from src.data.storage import load_history
+
     result = load_history()
     assert isinstance(result, pd.DataFrame)
     assert result.empty
 
 
 def test_load_history_concatenates_multiple_scans(results_dir, sample_df):
-    from src.data.storage import save_results, load_history
+    from src.data.storage import load_history, save_results
+
     save_results(sample_df)
     save_results(sample_df)
     history = load_history()
@@ -100,7 +112,9 @@ def test_load_history_concatenates_multiple_scans(results_dir, sample_df):
 
 def test_load_history_skips_broken_file(results_dir, sample_df, caplog):
     import logging
-    from src.data.storage import save_results, load_history
+
+    from src.data.storage import load_history, save_results
+
     save_results(sample_df)
     # Write a broken parquet file
     broken = results_dir / "history" / "broken.parquet"
@@ -112,7 +126,8 @@ def test_load_history_skips_broken_file(results_dir, sample_df, caplog):
 
 
 def test_load_history_skips_empty_dataframes(results_dir, sample_df):
-    from src.data.storage import save_results, load_history
+    from src.data.storage import load_history, save_results
+
     save_results(sample_df)
     # Save an empty df directly as parquet
     empty = results_dir / "history" / "empty.parquet"
@@ -123,13 +138,16 @@ def test_load_history_skips_empty_dataframes(results_dir, sample_df):
 
 # --- list_scan_files ---
 
+
 def test_list_scan_files_empty_when_no_history(results_dir):
     from src.data.storage import list_scan_files
+
     assert list_scan_files() == []
 
 
 def test_list_scan_files_returns_metadata(results_dir, sample_df):
-    from src.data.storage import save_results, list_scan_files
+    from src.data.storage import list_scan_files, save_results
+
     save_results(sample_df)
     files = list_scan_files()
     assert len(files) == 1
@@ -142,7 +160,9 @@ def test_list_scan_files_returns_metadata(results_dir, sample_df):
 
 def test_list_scan_files_skips_broken(results_dir, sample_df, caplog):
     import logging
-    from src.data.storage import save_results, list_scan_files
+
+    from src.data.storage import list_scan_files, save_results
+
     save_results(sample_df)
     broken = results_dir / "history" / "zzz_broken.parquet"
     broken.write_bytes(b"garbage")

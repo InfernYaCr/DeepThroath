@@ -4,31 +4,28 @@ Pipeline: Answer Relevancy + Faithfulness (DeepEval) — Orchestrator
 Modularized version of the evaluation pipeline.
 """
 
+import csv
+import json
 import os
 import sys
-import json
-import csv
 import threading
-import yaml
-from pathlib import Path
-from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dotenv import load_dotenv
+from datetime import datetime
+from pathlib import Path
+
+import yaml
+from core.checkpoint import load_checkpoint
 
 # Import our new core modules
-from core.judges import build_judge
-from core.api_utils import fetch_from_api
-from core.checkpoint import load_checkpoint, save_checkpoint
 from core.reporting import generate_markdown_report
 from core.runner import evaluate_record
+from dotenv import load_dotenv
 
 # Load environment
 load_dotenv(Path(__file__).parent / ".env")
 
 # ── Конфигурация ──────────────────────────────────────────────────────────────
-THRESHOLD_DEFAULTS = {
-    "AR": 0.7, "FA": 0.8, "CP": 0.7, "CR": 0.6
-}
+THRESHOLD_DEFAULTS = {"AR": 0.7, "FA": 0.8, "CP": 0.7, "CR": 0.6}
 MAX_WORKERS = 3
 API_CONFIG: dict | None = None
 PROGRESS_CALLBACK: callable | None = None
@@ -39,6 +36,7 @@ API_LOG_LOCK = threading.Lock()
 OUTPUT_DIR = Path(__file__).parent / "results"
 OUTPUT_DIR.mkdir(exist_ok=True)
 TARGETS_PATH = Path(__file__).parent / "config" / "targets.yaml"
+
 
 def _resolve_judge(alias: str) -> dict:
     if not TARGETS_PATH.exists():
@@ -56,18 +54,15 @@ def _resolve_judge(alias: str) -> dict:
         "no_reasoning": t.get("no_reasoning", False),
     }
 
+
 def run_eval(
-    input_path: str, 
-    limit: int = None, 
-    judge_alias: str = None, 
-    api_contract: dict = None,
-    progress_cb: callable = None
+    input_path: str, limit: int = None, judge_alias: str = None, api_contract: dict = None, progress_cb: callable = None
 ) -> Path:
     """Основная точка входа для запуска оценки."""
     global API_CONFIG, PROGRESS_CALLBACK
     API_CONFIG = api_contract
     PROGRESS_CALLBACK = progress_cb
-    
+
     # 1. Setup Judge
     judge_name = judge_alias or os.getenv("JUDGE_ALIAS", "openai")
     try:
@@ -78,7 +73,7 @@ def run_eval(
         judge_cfg = {
             "provider": os.getenv("JUDGE_PROVIDER", "openai").lower(),
             "model": os.getenv("JUDGE_MODEL", "gpt-4o-mini"),
-            "no_reasoning": False
+            "no_reasoning": False,
         }
 
     # 2. Setup Files
@@ -111,9 +106,9 @@ def run_eval(
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = {
             executor.submit(
-                evaluate_record, rec, i+1, len(data), done, lock, 
-                run_dir, judge_cfg, THRESHOLD_DEFAULTS, API_CONFIG
-            ): rec for i, rec in enumerate(data)
+                evaluate_record, rec, i + 1, len(data), done, lock, run_dir, judge_cfg, THRESHOLD_DEFAULTS, API_CONFIG
+            ): rec
+            for i, rec in enumerate(data)
         }
         for future in as_completed(futures):
             res = future.result()
@@ -124,7 +119,7 @@ def run_eval(
     if API_LOG:
         with open(run_dir / "api_responses.json", "w", encoding="utf-8") as f:
             json.dump(API_LOG, f, ensure_ascii=False, indent=2)
-    
+
     if ERRORS_LOG:
         with open(run_dir / "errors_log.json", "w", encoding="utf-8") as f:
             json.dump(ERRORS_LOG, f, ensure_ascii=False, indent=2)
@@ -143,16 +138,24 @@ def run_eval(
 
     # 6. Report
     report_path = generate_markdown_report(
-        results, len(data) - len(results), ts, 
-        judge_cfg['provider'], judge_cfg['model'], path.stem, 
-        run_dir, THRESHOLD_DEFAULTS, path
+        results,
+        len(data) - len(results),
+        ts,
+        judge_cfg["provider"],
+        judge_cfg["model"],
+        path.stem,
+        run_dir,
+        THRESHOLD_DEFAULTS,
+        path,
     )
 
     print(f"\n[DONE] Report saved to: {report_path}")
     return run_dir
 
+
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("input", help="Path to input JSON dataset")
     parser.add_argument("--limit", type=int, help="Limit samples")

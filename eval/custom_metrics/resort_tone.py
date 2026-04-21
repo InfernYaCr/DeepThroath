@@ -26,8 +26,8 @@ class ToneInput(BaseModel):
 
 
 class ToneOutput(BaseModel):
-    score: float   # 0.0–1.0
-    reason: str    # объяснение на русском
+    score: float  # 0.0–1.0
+    reason: str  # объяснение на русском
 
 
 class ResortTonePrompt(PydanticPrompt[ToneInput, ToneOutput]):
@@ -67,8 +67,7 @@ class ResortTonePrompt(PydanticPrompt[ToneInput, ToneOutput]):
             ToneOutput(
                 score=0.5,
                 reason=(
-                    "Ответ технически верен, но слишком лаконичен и сух "
-                    "для общения с гостем 5-звёздочного курорта."
+                    "Ответ технически верен, но слишком лаконичен и сух для общения с гостем 5-звёздочного курорта."
                 ),
             ),
         ),
@@ -141,9 +140,7 @@ class ResortToneMetric(MetricWithLLM, SingleTurnMetric):
     name: str = "resort_tone"
     tone_prompt: ResortTonePrompt = field(default_factory=ResortTonePrompt)
 
-    async def _single_turn_ascore(
-        self, sample: SingleTurnSample, callbacks=None
-    ) -> float:
+    async def _single_turn_ascore(self, sample: SingleTurnSample, callbacks=None) -> float:
         tone_input = ToneInput(
             question=sample.user_input or "",
             answer=sample.response or "",

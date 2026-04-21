@@ -23,49 +23,51 @@ Pipeline: RAGAS metrics evaluation
 API_URL (опционально, только для режима 2).
 """
 
-import os
-import sys
-import json
 import asyncio
 import importlib
+import json
+import os
 import pkgutil
+import sys
 import warnings
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 import yaml
-from dotenv import load_dotenv
-
-# .env загружается ИЗ ПАПКИ СКРИПТА — паттерн из eval_rag_metrics.py:39
-load_dotenv(Path(__file__).parent / ".env")
+from openai import AsyncOpenAI as AsyncOpenAIClient
+from openai import OpenAI as OpenAIClient
+from ragas.dataset_schema import SingleTurnSample
+from ragas.embeddings import OpenAIEmbeddings as RagasOpenAIEmbeddings
+from ragas.llms import llm_factory
+from ragas.metrics.base import MetricWithLLM, SingleTurnMetric
+from ragas.metrics.collections import (
+    AnswerCorrectness,
+    AnswerRelevancy,
+    ContextPrecision,
+    ContextRecall,
+    Faithfulness,
+)
 
 try:
     import httpx as _httpx
+
     _HAS_HTTPX = True
 except ImportError:
     _HAS_HTTPX = False
 
-from openai import OpenAI as OpenAIClient, AsyncOpenAI as AsyncOpenAIClient
-from ragas.dataset_schema import SingleTurnSample
-from ragas.metrics.collections import (
-    Faithfulness, AnswerRelevancy, ContextPrecision,
-    ContextRecall, AnswerCorrectness,
-)
-from ragas.metrics.base import MetricWithLLM, SingleTurnMetric
-from ragas.llms import llm_factory
-from ragas.embeddings import OpenAIEmbeddings as RagasOpenAIEmbeddings
+# ── Конфигурация верхнего уровня ──────────────────────────────────────────────
 
 # ── Конфигурация верхнего уровня ──────────────────────────────────────────────
 
-JUDGE_PROVIDER   = os.getenv("JUDGE_PROVIDER", "openai").lower()
+JUDGE_PROVIDER = os.getenv("JUDGE_PROVIDER", "openai").lower()
 JUDGE_MODEL_NAME = os.getenv("JUDGE_MODEL", "gpt-4o-mini")
 EMBEDDINGS_MODEL = os.getenv("EMBEDDINGS_MODEL", "text-embedding-3-small")
-MAX_WORKERS      = 3
-MAX_WAIT         = 120
-OUTPUT_DIR       = Path(__file__).parent / "results"
-CONFIG_PATH      = Path(__file__).parent / "config" / "eval_config.yaml"
-TARGETS_PATH     = Path(__file__).parent / "config" / "targets.yaml"
+MAX_WORKERS = 3
+MAX_WAIT = 120
+OUTPUT_DIR = Path(__file__).parent / "results"
+CONFIG_PATH = Path(__file__).parent / "config" / "eval_config.yaml"
+TARGETS_PATH = Path(__file__).parent / "config" / "targets.yaml"
 CUSTOM_METRICS_DIR = Path(__file__).parent / "custom_metrics"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
@@ -73,7 +75,7 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 def load_eval_config() -> dict:
     """Читает eval/config/eval_config.yaml и возвращает dict конфигурации."""
     if not CONFIG_PATH.exists():
-        warnings.warn(f"eval_config.yaml не найден: {CONFIG_PATH} — используются дефолты", UserWarning)
+        warnings.warn(f"eval_config.yaml не найден: {CONFIG_PATH} — используются дефолты", UserWarning, stacklevel=2)
         return {}
     try:
         with open(CONFIG_PATH, encoding="utf-8") as f:
@@ -165,9 +167,7 @@ def build_judge(provider: str, model: str):
             kwargs["base_url"] = base_url
         client = AsyncOpenAIClient(**kwargs)
     else:
-        raise ValueError(
-            f"Неизвестный провайдер судьи: '{provider}'. Поддерживаются: openai, openrouter"
-        )
+        raise ValueError(f"Неизвестный провайдер судьи: '{provider}'. Поддерживаются: openai, openrouter")
     return llm_factory(model, client=client, max_tokens=_RAGAS_MAX_TOKENS)
 
 
@@ -181,6 +181,7 @@ def build_embeddings() -> Optional[RagasOpenAIEmbeddings]:
         warnings.warn(
             "OPENAI_API_KEY не задан — AnswerRelevancy и AnswerCorrectness будут пропущены (требуют embeddings)",
             UserWarning,
+            stacklevel=2,
         )
         return None
     kwargs: dict = {"api_key": api_key}
@@ -195,11 +196,12 @@ def build_embeddings() -> Optional[RagasOpenAIEmbeddings]:
 
 # ── Template utils (копия из eval_rag_metrics.py:338-368) ────────────────────
 
+
 def get_value_by_path(data: dict, path: str, default=None):
     """Извлекает значение по 'a.b.c' — копия из eval_rag_metrics.py:338-352."""
     if not path:
         return default
-    keys = path.split('.')
+    keys = path.split(".")
     val = data
     for k in keys:
         if isinstance(val, dict):
@@ -254,9 +256,7 @@ def fetch_from_api(rec: dict, api_config: Optional[dict]) -> dict:
                 },
             }
         else:
-            raise RuntimeError(
-                "API не настроен: добавь api в eval_config.yaml или установи API_URL env var"
-            )
+            raise RuntimeError("API не настроен: добавь api в eval_config.yaml или установи API_URL env var")
 
     question = rec.get("question") or rec.get("user_query", "")
     category = rec.get("category") or rec.get("intent", "")
@@ -284,8 +284,8 @@ def fetch_from_api(rec: dict, api_config: Optional[dict]) -> dict:
 
     try:
         data = resp.json()
-    except Exception:
-        raise RuntimeError(f"API вернул невалидный JSON: {resp.text[:200]}")
+    except Exception as e:
+        raise RuntimeError(f"API вернул невалидный JSON: {resp.text[:200]}") from e
 
     ex_answer = config.get("extractors", {}).get("answer", "answer")
     ex_chunks = config.get("extractors", {}).get("chunks", "retrieved_chunks")
@@ -342,19 +342,18 @@ def load_from_deepeval_run(folder: Path) -> list[dict]:
     for row in api_rows:
         rid = row.get("id")
         chunks_raw = row.get("retrieved_chunks", [])
-        retrieval_context: list[str] = [
-            c["content"] if isinstance(c, dict) else str(c)
-            for c in chunks_raw
-        ]
-        records.append({
-            "id": rid,
-            "session_id": rid,
-            "category": row.get("category"),
-            "user_query": row.get("question") or row.get("user_query", ""),
-            "actual_answer": row.get("answer") or row.get("actual_answer", ""),
-            "expected_answer": expected_by_id.get(rid),
-            "retrieval_context": retrieval_context,
-        })
+        retrieval_context: list[str] = [c["content"] if isinstance(c, dict) else str(c) for c in chunks_raw]
+        records.append(
+            {
+                "id": rid,
+                "session_id": rid,
+                "category": row.get("category"),
+                "user_query": row.get("question") or row.get("user_query", ""),
+                "actual_answer": row.get("answer") or row.get("actual_answer", ""),
+                "expected_answer": expected_by_id.get(rid),
+                "retrieval_context": retrieval_context,
+            }
+        )
     print(f"[DeepEval run] Загружено {len(records)} записей из {folder.name}")
     return records
 
@@ -377,10 +376,7 @@ def load_and_enrich_records(path: Path, api_config: Optional[dict]) -> list[dict
 
 def _filter_records(records: list[dict]) -> list[dict]:
     """Оставляет только записи с непустыми user_query и actual_answer."""
-    return [
-        r for r in records
-        if (r.get("user_query") or "").strip() and (r.get("actual_answer") or "").strip()
-    ]
+    return [r for r in records if (r.get("user_query") or "").strip() and (r.get("actual_answer") or "").strip()]
 
 
 def discover_custom_metrics() -> list:
@@ -438,15 +434,15 @@ def build_builtin_metrics(
     if has_embeddings:
         metrics.append(AnswerRelevancy(llm=llm, embeddings=embeddings))
     else:
-        warnings.warn("Embeddings недоступны — пропускаем AnswerRelevancy", UserWarning)
+        warnings.warn("Embeddings недоступны — пропускаем AnswerRelevancy", UserWarning, stacklevel=2)
 
     if has_context:
         metrics.append(Faithfulness(llm=llm))
     else:
         warnings.warn(
-            "retrieved_contexts пуст у всех записей — "
-            "пропускаем Faithfulness, ContextPrecision, ContextRecall",
+            "retrieved_contexts пуст у всех записей — пропускаем Faithfulness, ContextPrecision, ContextRecall",
             UserWarning,
+            stacklevel=2,
         )
 
     if has_context and has_reference:
@@ -482,10 +478,10 @@ async def _score_builtin_metric(
 
     # Полный пул полей для записи
     FIELD_MAP = {
-        "user_input":        lambda r: r.get("user_query") or "",
-        "response":          lambda r: r.get("actual_answer") or "",
+        "user_input": lambda r: r.get("user_query") or "",
+        "response": lambda r: r.get("actual_answer") or "",
         "retrieved_contexts": lambda r: [c for c in (r.get("retrieval_context") or []) if isinstance(c, str)],
-        "reference":         lambda r: r.get("expected_answer"),
+        "reference": lambda r: r.get("expected_answer"),
     }
 
     inputs = []
@@ -572,21 +568,21 @@ def save_results(
       <custom>             → <custom>_score
     """
     BUILTIN_MAP = {
-        "faithfulness":       "faithfulness_score",
-        "answer_relevancy":   "answer_relevancy_score",
-        "context_precision":  "context_precision_score",
-        "context_recall":     "context_recall_score",
+        "faithfulness": "faithfulness_score",
+        "answer_relevancy": "answer_relevancy_score",
+        "context_precision": "context_precision_score",
+        "context_recall": "context_recall_score",
         "answer_correctness": "answer_correctness_score",
     }
 
     rows = []
     for i, rec in enumerate(records):
         row: dict = {
-            "session_id":      rec.get("session_id") or rec.get("id"),
-            "category":        rec.get("category"),
-            "intent":          rec.get("intent"),
-            "user_query":      rec.get("user_query"),
-            "actual_answer":   rec.get("actual_answer"),
+            "session_id": rec.get("session_id") or rec.get("id"),
+            "category": rec.get("category"),
+            "intent": rec.get("intent"),
+            "user_query": rec.get("user_query"),
+            "actual_answer": rec.get("actual_answer"),
             "expected_answer": rec.get("expected_answer"),
             "retrieval_context": rec.get("retrieval_context") or [],
         }
@@ -614,6 +610,7 @@ def save_results(
 
 
 # ── Asyncio entry point ───────────────────────────────────────────────────────
+
 
 def _apply_asyncio_policy() -> None:
     """Фикс для macOS: предотвращает 'event loop is already running' (PITFALLS.md #2)."""
@@ -648,11 +645,7 @@ async def run_pipeline(
     Решение: вызываем abatch_score() на каждой метрике напрямую.
     """
     config = load_eval_config()
-    judge_cfg = (
-        resolve_judge_by_alias(judge_override)
-        if judge_override
-        else resolve_judge_config(config)
-    )
+    judge_cfg = resolve_judge_by_alias(judge_override) if judge_override else resolve_judge_config(config)
 
     is_deepeval_run = path.is_dir()
     print(f"Режим        : {'DeepEval run (без API)' if is_deepeval_run else 'датасет JSON (с API)'}")
@@ -701,7 +694,7 @@ async def run_pipeline(
 
     builtin_tasks = [_score_builtin_metric(m, records) for m in builtin_metrics]
     builtin_results = await asyncio.gather(*builtin_tasks)
-    for metric, scores in zip(builtin_metrics, builtin_results):
+    for metric, scores in zip(builtin_metrics, builtin_results, strict=False):
         all_scores[metric.name] = scores
         passed = sum(1 for s in scores if s is not None and s >= 0.7)
         avg = sum(s for s in scores if s is not None) / max(1, sum(1 for s in scores if s is not None))
@@ -726,9 +719,7 @@ async def run_pipeline(
         "timestamp": ts,
         "total_records": len(records),
     }
-    (run_dir / "meta.json").write_text(
-        json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    (run_dir / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
     out_path = save_results(records, all_scores, run_dir)
     print(f"\nПапка прогона → {run_dir}")
@@ -773,16 +764,23 @@ def main(
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="RAGAS evaluation pipeline")
     parser.add_argument("input", help="Папка прогона DeepEval или путь к датасету JSON")
     parser.add_argument("--limit", type=int, default=None, help="Ограничить число записей (для тестирования)")
     parser.add_argument(
-        "--fail-below", type=float, default=None, metavar="THRESHOLD",
-        help="CI/CD quality gate: завершить с exit code 1 если avg любой метрики < THRESHOLD (например 0.75)"
+        "--fail-below",
+        type=float,
+        default=None,
+        metavar="THRESHOLD",
+        help="CI/CD quality gate: завершить с exit code 1 если avg любой метрики < THRESHOLD (например 0.75)",
     )
     parser.add_argument(
-        "--judge", type=str, default=None, metavar="ALIAS",
-        help="Переопределить судью по имени из targets.yaml (например gpt4o-mini-or, qwen-72b-or)"
+        "--judge",
+        type=str,
+        default=None,
+        metavar="ALIAS",
+        help="Переопределить судью по имени из targets.yaml (например gpt4o-mini-or, qwen-72b-or)",
     )
     args = parser.parse_args()
     main(args.input, limit=args.limit, fail_below=args.fail_below, judge_override=args.judge)

@@ -73,16 +73,8 @@ def _load_class(class_path: str) -> type:
 
 
 def build_attacks(configs: list[AttackConfig]) -> list[Any]:
-    return [
-        _load_class(cfg.attack_class)(**cfg.params)
-        for cfg in configs
-        if cfg.enabled
-    ]
+    return [_load_class(cfg.attack_class)(**cfg.params) for cfg in configs if cfg.enabled]
 
 
 def build_vulnerabilities(configs: list[VulnerabilityConfig]) -> list[Any]:
-    return [
-        _load_class(cfg.vulnerability_class)(**cfg.params)
-        for cfg in configs
-        if cfg.enabled
-    ]
+    return [_load_class(cfg.vulnerability_class)(**cfg.params) for cfg in configs if cfg.enabled]

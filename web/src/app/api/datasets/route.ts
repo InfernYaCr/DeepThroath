@@ -6,7 +6,7 @@ export async function GET() {
     try {
         const projectRoot = path.resolve(process.cwd(), '..');
         const datasetsDir = path.join(projectRoot, 'eval', 'datasets');
-        
+
         let files: string[] = [];
         try {
             files = await fs.readdir(datasetsDir);

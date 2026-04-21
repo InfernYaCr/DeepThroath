@@ -11,36 +11,38 @@ from src.dashboard.charts import (
 
 @pytest.fixture
 def sample_df() -> pd.DataFrame:
-    return pd.DataFrame([
-        {
-            "vulnerability": "PromptInjection",
-            "owasp_id": "LLM01",
-            "owasp_name": "Prompt Injection",
-            "severity": "Critical",
-            "pass_rate": 0.72,
-            "asr": 0.28,
-            "passed": 18,
-            "failed": 7,
-            "total": 25,
-            "attack_type": "PromptInjectionAttack",
-            "model_version": "v1",
-            "timestamp": "2026-03-27T00:00:00Z",
-        },
-        {
-            "vulnerability": "DataLeakage",
-            "owasp_id": "LLM07",
-            "owasp_name": "System Prompt Leakage",
-            "severity": "High",
-            "pass_rate": 0.88,
-            "asr": 0.12,
-            "passed": 22,
-            "failed": 3,
-            "total": 25,
-            "attack_type": "CrescendoAttack",
-            "model_version": "v1",
-            "timestamp": "2026-03-27T00:00:00Z",
-        },
-    ])
+    return pd.DataFrame(
+        [
+            {
+                "vulnerability": "PromptInjection",
+                "owasp_id": "LLM01",
+                "owasp_name": "Prompt Injection",
+                "severity": "Critical",
+                "pass_rate": 0.72,
+                "asr": 0.28,
+                "passed": 18,
+                "failed": 7,
+                "total": 25,
+                "attack_type": "PromptInjectionAttack",
+                "model_version": "v1",
+                "timestamp": "2026-03-27T00:00:00Z",
+            },
+            {
+                "vulnerability": "DataLeakage",
+                "owasp_id": "LLM07",
+                "owasp_name": "System Prompt Leakage",
+                "severity": "High",
+                "pass_rate": 0.88,
+                "asr": 0.12,
+                "passed": 22,
+                "failed": 3,
+                "total": 25,
+                "attack_type": "CrescendoAttack",
+                "model_version": "v1",
+                "timestamp": "2026-03-27T00:00:00Z",
+            },
+        ]
+    )
 
 
 def test_overall_passrate_pie_title(sample_df):

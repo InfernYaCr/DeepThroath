@@ -1,17 +1,19 @@
-import os
 import threading
 from typing import Any, Dict, List, Optional
+
 try:
     import httpx
+
     _HAS_HTTPX = True
 except ImportError:
     _HAS_HTTPX = False
+
 
 def get_value_by_path(data: Any, path: str, default: Any = None) -> Any:
     """Извлекает значение из словаря/списка по строковому пути (json path style)."""
     if not path:
         return default
-    keys = path.split('.')
+    keys = path.split(".")
     val = data
     for k in keys:
         if isinstance(val, dict):
@@ -23,6 +25,7 @@ def get_value_by_path(data: Any, path: str, default: Any = None) -> Any:
         if val is None:
             return default
     return val
+
 
 def resolve_template(template: Any, rec: Dict[str, Any]) -> Any:
     """Заменяет переменные {{key}} в шаблоне (строка, словарь или список)."""
@@ -38,17 +41,18 @@ def resolve_template(template: Any, rec: Dict[str, Any]) -> Any:
         return [resolve_template(v, rec) for v in template]
     return template
 
+
 def fetch_from_api(
-    rec: Dict[str, Any], 
-    api_config: Optional[Dict[str, Any]], 
+    rec: Dict[str, Any],
+    api_config: Optional[Dict[str, Any]],
     api_url: Optional[str] = None,
     api_log: Optional[List[Dict[str, Any]]] = None,
-    log_lock: Optional[threading.Lock] = None
+    log_lock: Optional[threading.Lock] = None,
 ) -> Dict[str, Any]:
     """Вызывает динамический RAG API согласно конфигурации."""
     if not _HAS_HTTPX:
         raise RuntimeError("httpx не установлен: pip install httpx")
-    
+
     if api_config:
         config = api_config
     elif api_url:
@@ -57,10 +61,7 @@ def fetch_from_api(
             "method": "POST",
             "headers": {},
             "body": {"question": "{{user_query}}", "category": "{{category}}"},
-            "extractors": {
-                "answer": "answer",
-                "chunks": "retrieved_chunks"
-            }
+            "extractors": {"answer": "answer", "chunks": "retrieved_chunks"},
         }
     else:
         raise RuntimeError("API_URL или API_CONFIG не задан")
@@ -92,16 +93,16 @@ def fetch_from_api(
 
     try:
         data = resp.json()
-    except Exception:
-        raise RuntimeError(f"API returned invalid JSON: {resp.text[:200]}")
+    except Exception as e:
+        raise RuntimeError(f"API returned invalid JSON: {resp.text[:200]}") from e
 
     extractors = config.get("extractors", {})
     ex_answer = extractors.get("answer", "answer")
     ex_chunks = extractors.get("chunks", "retrieved_chunks")
-    
+
     answer = get_value_by_path(data, ex_answer, "")
     chunks_raw = get_value_by_path(data, ex_chunks, [])
-    
+
     chunks_text = []
     if isinstance(chunks_raw, list):
         for c in chunks_raw:
@@ -118,19 +119,19 @@ def fetch_from_api(
         chunks_text = [str(chunks_raw)]
 
     enriched = dict(rec)
-    enriched["user_query"]        = question
-    enriched["actual_answer"]     = answer
+    enriched["user_query"] = question
+    enriched["actual_answer"] = answer
     enriched["retrieval_context"] = chunks_text
 
     if api_log is not None and log_lock is not None:
         log_entry = {
-            "id":              rec.get("id") or rec.get("session_id"),
-            "question":        question,
-            "category":        category,
-            "answer":          answer,
-            "chunks_count":    len(chunks_text),
+            "id": rec.get("id") or rec.get("session_id"),
+            "question": question,
+            "category": category,
+            "answer": answer,
+            "chunks_count": len(chunks_text),
             "retrieved_chunks": [{"content": c} for c in chunks_text],
-            "api_url":         url
+            "api_url": url,
         }
         with log_lock:
             api_log.append(log_entry)

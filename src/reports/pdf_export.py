@@ -35,8 +35,7 @@ def export_pdf(html: str) -> bytes:
     """Convert rendered HTML to PDF bytes using WeasyPrint."""
     try:
         from weasyprint import HTML
+
         return HTML(string=html, base_url=str(TEMPLATES_DIR)).write_pdf()
     except ImportError as exc:
-        raise RuntimeError(
-            "weasyprint is required for PDF export. Install it with: pip install weasyprint"
-        ) from exc
+        raise RuntimeError("weasyprint is required for PDF export. Install it with: pip install weasyprint") from exc

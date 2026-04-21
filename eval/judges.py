@@ -2,8 +2,10 @@
 Custom Judge implementations for DeepEval.
 Supports OpenRouter and GigaChat LLM providers.
 """
-import os
+
 import asyncio
+import os
+
 from deepeval.models.base_model import DeepEvalBaseLLM
 
 
@@ -34,7 +36,8 @@ class OpenRouterJudge(DeepEvalBaseLLM):
 
     def _clean_json(self, text: str) -> str:
         import re
-        match = re.search(r'(\{.*\}|\[.*\])', text, re.DOTALL)
+
+        match = re.search(r"(\{.*\}|\[.*\])", text, re.DOTALL)
         if match:
             return match.group(0)
         return text.strip()
@@ -65,9 +68,7 @@ class OpenRouterJudge(DeepEvalBaseLLM):
         return self._clean_json(response.choices[0].message.content)
 
     async def a_generate(self, prompt: str) -> str:
-        return await asyncio.get_event_loop().run_in_executor(
-            None, self.generate, prompt
-        )
+        return await asyncio.get_event_loop().run_in_executor(None, self.generate, prompt)
 
 
 class GigaChatJudge(DeepEvalBaseLLM):
@@ -81,11 +82,13 @@ class GigaChatJudge(DeepEvalBaseLLM):
 
     def load_model(self):
         from gigachat import GigaChat
+
         return GigaChat
 
     def _clean_json(self, text: str) -> str:
         import re
-        match = re.search(r'(\{.*\}|\[.*\])', text, re.DOTALL)
+
+        match = re.search(r"(\{.*\}|\[.*\])", text, re.DOTALL)
         if match:
             return match.group(0)
         return text.strip()
@@ -106,21 +109,20 @@ class GigaChatJudge(DeepEvalBaseLLM):
         prompt_suffix = "\n\n[CRITICAL FINAL INSTRUCTION]\nThe value of the 'reason' field MUST be written in fluent Russian language (по-русски)."
         prompt += prompt_suffix
 
-        with GigaChat(credentials=os.environ["GIGACHAT_CREDENTIALS"],
-                      verify_ssl_certs=False) as client:
-            response = client.chat(Chat(
-                model=self.model,
-                messages=[
-                    Messages(role=MessagesRole.SYSTEM, content=system_prompt),
-                    Messages(role=MessagesRole.USER, content=prompt),
-                ],
-            ))
+        with GigaChat(credentials=os.environ["GIGACHAT_CREDENTIALS"], verify_ssl_certs=False) as client:
+            response = client.chat(
+                Chat(
+                    model=self.model,
+                    messages=[
+                        Messages(role=MessagesRole.SYSTEM, content=system_prompt),
+                        Messages(role=MessagesRole.USER, content=prompt),
+                    ],
+                )
+            )
         return self._clean_json(response.choices[0].message.content)
 
     async def a_generate(self, prompt: str) -> str:
-        return await asyncio.get_event_loop().run_in_executor(
-            None, self.generate, prompt
-        )
+        return await asyncio.get_event_loop().run_in_executor(None, self.generate, prompt)
 
 
 def build_judge(provider: str, model_name: str, no_reasoning: bool = False, verbose: bool = False):

@@ -89,6 +89,10 @@ export default function EvalDeepEvalTab() {
       .then((json) => {
         setData(json);
         setLoading(false);
+        // Если выбран "latest", автоматически ставим id самого свежего скана
+        if (selectedScan === "latest" && json.allScans?.length > 0) {
+          setSelectedScan(json.allScans[0].value);
+        }
       })
       .catch((err) => {
         setError(err.message);

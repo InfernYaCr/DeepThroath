@@ -50,7 +50,7 @@ class CompletenessOutput(BaseModel):
     """Структура ответа LLM-судьи: оценка полноты + объяснение."""
 
     score: float  # 0.0-1.0
-    reason: str   # объяснение на русском
+    reason: str  # объяснение на русском
 
 
 class CompletenessPrompt(PydanticPrompt[CompletenessInput, CompletenessOutput]):
@@ -79,9 +79,7 @@ class ExampleCustomMetric(MetricWithLLM, SingleTurnMetric):
     name: str = "completeness"
     completeness_prompt: CompletenessPrompt = field(default_factory=CompletenessPrompt)
 
-    async def _single_turn_ascore(
-        self, sample: SingleTurnSample, callbacks=None
-    ) -> float:
+    async def _single_turn_ascore(self, sample: SingleTurnSample, callbacks=None) -> float:
         out = await self.completeness_prompt.generate(
             data=CompletenessInput(
                 question=sample.user_input or "",

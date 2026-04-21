@@ -18,7 +18,9 @@ def test_create_anthropic_callback_returns_callable():
 
 def test_anthropic_callback_calls_api():
     import asyncio
+
     from deepteam.test_case import RTTurn
+
     mock_client = MagicMock()
     mock_response = MagicMock()
     mock_response.content = [MagicMock(text="Safe response")]

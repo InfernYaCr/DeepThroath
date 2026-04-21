@@ -2,17 +2,15 @@
 Обертки для запуска долгих Python скриптов в фоне.
 Адаптирует существующие scripts/run_redteam.py под async.
 """
+
 import asyncio
-from datetime import datetime
-from .schemas import RedTeamRequest, EvalRequest, JobStatus
 import traceback
+from datetime import datetime
+
+from .schemas import EvalRequest, JobStatus, RedTeamRequest
 
 
-async def run_redteam_background(
-    job_id: str,
-    config: RedTeamRequest,
-    jobs_dict: dict[str, JobStatus]
-):
+async def run_redteam_background(job_id: str, config: RedTeamRequest, jobs_dict: dict[str, JobStatus]):
     """
     Фоновый запуск Red Team сканирования.
     Обновляет jobs_dict по мере выполнения.
@@ -27,10 +25,7 @@ async def run_redteam_background(
 
         # Запускаем в thread pool (блокирующий код)
         results_path = await asyncio.to_thread(
-            run_redteam_scan,
-            target=config.target,
-            num_attacks=config.num_attacks,
-            system_prompt=config.system_prompt
+            run_redteam_scan, target=config.target, num_attacks=config.num_attacks, system_prompt=config.system_prompt
         )
 
         # Успех
@@ -50,11 +45,7 @@ async def run_redteam_background(
         traceback.print_exc()
 
 
-async def run_eval_background(
-    job_id: str,
-    config: EvalRequest,
-    jobs_dict: dict[str, JobStatus]
-):
+async def run_eval_background(job_id: str, config: EvalRequest, jobs_dict: dict[str, JobStatus]):
     """Фоновый запуск RAG Evaluation"""
     try:
         jobs_dict[job_id].status = "running"
@@ -78,7 +69,7 @@ async def run_eval_background(
             metrics=config.metrics,
             n_samples=config.n_samples,
             api_contract=config.api_contract,
-            progress_callback=progress_callback
+            progress_callback=progress_callback,
         )
 
         jobs_dict[job_id].status = "completed"

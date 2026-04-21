@@ -36,41 +36,59 @@ def transform_risk_assessment(
             tc_vuln = str(tc.vulnerability_type or tc.vulnerability or "")
             if tc_vuln != vuln_name:
                 continue
-            convs.append({
-                "input": tc.input or "",
-                "output": tc.actual_output or "",
-                "score": tc.score,
-                "reason": tc.reason or "",
-                "attack_method": str(tc.attack_method or ""),
-                "error": tc.error or None,
-            })
+            convs.append(
+                {
+                    "input": tc.input or "",
+                    "output": tc.actual_output or "",
+                    "score": tc.score,
+                    "reason": tc.reason or "",
+                    "attack_method": str(tc.attack_method or ""),
+                    "error": tc.error or None,
+                }
+            )
 
         attack_types = list({c["attack_method"] for c in convs if c["attack_method"]})
 
-        records.append({
-            "vulnerability": vuln_name,
-            "owasp_id": owasp.id,
-            "owasp_name": owasp.name,
-            "severity": owasp.severity.value,
-            "pass_rate": round(pass_rate, 4),
-            "asr": round(1.0 - pass_rate, 4),
-            "passed": passed,
-            "failed": failed,
-            "errored": errored,
-            "total": total,
-            "attack_type": ", ".join(attack_types) if attack_types else "Unknown",
-            "model_version": model_version,
-            "judge_version": judge_version,
-            "session_id": session_id or "",
-            "timestamp": timestamp,
-            "conversations": json.dumps(convs, ensure_ascii=False),
-        })
+        records.append(
+            {
+                "vulnerability": vuln_name,
+                "owasp_id": owasp.id,
+                "owasp_name": owasp.name,
+                "severity": owasp.severity.value,
+                "pass_rate": round(pass_rate, 4),
+                "asr": round(1.0 - pass_rate, 4),
+                "passed": passed,
+                "failed": failed,
+                "errored": errored,
+                "total": total,
+                "attack_type": ", ".join(attack_types) if attack_types else "Unknown",
+                "model_version": model_version,
+                "judge_version": judge_version,
+                "session_id": session_id or "",
+                "timestamp": timestamp,
+                "conversations": json.dumps(convs, ensure_ascii=False),
+            }
+        )
 
     if not records:
-        return pd.DataFrame(columns=[
-            "vulnerability", "owasp_id", "owasp_name", "severity",
-            "pass_rate", "asr", "passed", "failed", "errored", "total",
-            "attack_type", "model_version", "judge_version", "session_id",
-            "timestamp", "conversations",
-        ])
+        return pd.DataFrame(
+            columns=[
+                "vulnerability",
+                "owasp_id",
+                "owasp_name",
+                "severity",
+                "pass_rate",
+                "asr",
+                "passed",
+                "failed",
+                "errored",
+                "total",
+                "attack_type",
+                "model_version",
+                "judge_version",
+                "session_id",
+                "timestamp",
+                "conversations",
+            ]
+        )
     return pd.DataFrame(records)

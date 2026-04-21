@@ -2,24 +2,23 @@
 FastAPI микросервис для долгих LLM задач.
 Заменяет child_process.spawn из Next.js API routes.
 """
-from fastapi import FastAPI, BackgroundTasks, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from .schemas import RedTeamRequest, EvalRequest, JobResponse, JobStatus
-from .runner import run_redteam_background, run_eval_background
+
 import uuid
 
-app = FastAPI(
-    title="DeepThroath API",
-    version="1.0.0",
-    description="API для Red Team и RAG Evaluation"
-)
+from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+
+from .runner import run_eval_background, run_redteam_background
+from .schemas import EvalRequest, JobResponse, JobStatus, RedTeamRequest
+
+app = FastAPI(title="DeepThroath API", version="1.0.0", description="API для Red Team и RAG Evaluation")
 
 # CORS для Next.js на localhost:3000
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://your-vercel-domain.vercel.app"  # TODO: заменить на production домен
+        "https://your-vercel-domain.vercel.app",  # TODO: заменить на production домен
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -32,10 +31,7 @@ jobs: dict[str, JobStatus] = {}
 
 
 @app.post("/api/runner/redteam", response_model=JobResponse, tags=["Red Team"])
-async def create_redteam_job(
-    request: RedTeamRequest,
-    background_tasks: BackgroundTasks
-):
+async def create_redteam_job(request: RedTeamRequest, background_tasks: BackgroundTasks):
     """
     Запустить Red Team сканирование в фоне.
     Возвращает job_id для отслеживания прогресса.
@@ -44,31 +40,18 @@ async def create_redteam_job(
     jobs[job_id] = JobStatus(job_id=job_id, status="pending", progress=0)
 
     # Запуск в фоне (не блокирует HTTP response)
-    background_tasks.add_task(
-        run_redteam_background,
-        job_id=job_id,
-        config=request,
-        jobs_dict=jobs
-    )
+    background_tasks.add_task(run_redteam_background, job_id=job_id, config=request, jobs_dict=jobs)
 
     return JobResponse(job_id=job_id, status="pending")
 
 
 @app.post("/api/runner/eval", response_model=JobResponse, tags=["RAG Evaluation"])
-async def create_eval_job(
-    request: EvalRequest,
-    background_tasks: BackgroundTasks
-):
+async def create_eval_job(request: EvalRequest, background_tasks: BackgroundTasks):
     """Запустить RAG Evaluation в фоне"""
     job_id = str(uuid.uuid4())
     jobs[job_id] = JobStatus(job_id=job_id, status="pending", progress=0)
 
-    background_tasks.add_task(
-        run_eval_background,
-        job_id=job_id,
-        config=request,
-        jobs_dict=jobs
-    )
+    background_tasks.add_task(run_eval_background, job_id=job_id, config=request, jobs_dict=jobs)
 
     return JobResponse(job_id=job_id, status="pending")
 

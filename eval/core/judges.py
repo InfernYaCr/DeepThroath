@@ -1,8 +1,9 @@
+import asyncio
 import os
 import re
-import asyncio
-from typing import Optional, Union
+
 from deepeval.models.base_model import DeepEvalBaseLLM
+
 
 class OpenRouterJudge(DeepEvalBaseLLM):
     """Судья на базе OpenRouter (OpenAI-совместимый API)."""
@@ -28,7 +29,7 @@ class OpenRouterJudge(DeepEvalBaseLLM):
         return self.client
 
     def _clean_json(self, text: str) -> str:
-        match = re.search(r'(\{.*\}|\[.*\])', text, re.DOTALL)
+        match = re.search(r"(\{.*\}|\[.*\])", text, re.DOTALL)
         if match:
             return match.group(0)
         return text.strip()
@@ -43,10 +44,10 @@ class OpenRouterJudge(DeepEvalBaseLLM):
             "Do not include any intro text, markdown formatting (like ```json), or conversational fillers. "
             "Your response must start with { and end with }."
         )
-        
+
         prompt_suffix = "\n\n[CRITICAL FINAL INSTRUCTION]\nThe value of the 'reason' field MUST be written in fluent Russian language (по-русски)."
         prompt += prompt_suffix
-        
+
         response = self.client.chat.completions.create(
             model=self.model,
             extra_body=extra,
@@ -58,9 +59,7 @@ class OpenRouterJudge(DeepEvalBaseLLM):
         return self._clean_json(response.choices[0].message.content)
 
     async def a_generate(self, prompt: str) -> str:
-        return await asyncio.get_event_loop().run_in_executor(
-            None, self.generate, prompt
-        )
+        return await asyncio.get_event_loop().run_in_executor(None, self.generate, prompt)
 
 
 class GigaChatJudge(DeepEvalBaseLLM):
@@ -74,10 +73,11 @@ class GigaChatJudge(DeepEvalBaseLLM):
 
     def load_model(self):
         from gigachat import GigaChat
+
         return GigaChat
 
     def _clean_json(self, text: str) -> str:
-        match = re.search(r'(\{.*\}|\[.*\])', text, re.DOTALL)
+        match = re.search(r"(\{.*\}|\[.*\])", text, re.DOTALL)
         if match:
             return match.group(0)
         return text.strip()
@@ -85,7 +85,7 @@ class GigaChatJudge(DeepEvalBaseLLM):
     def generate(self, prompt: str) -> str:
         from gigachat import GigaChat
         from gigachat.models import Chat, Messages, MessagesRole
-        
+
         system_prompt = (
             "You are an evaluation assistant. "
             "CRITICAL: The 'reason' field in your JSON MUST be written strictly in Russian (НА РУССКОМ ЯЗЫКЕ). "
@@ -94,25 +94,24 @@ class GigaChatJudge(DeepEvalBaseLLM):
             "Do not include any intro text, markdown formatting (like ```json), or conversational fillers. "
             "Your response must start with { and end with }."
         )
-        
+
         prompt_suffix = "\n\n[CRITICAL FINAL INSTRUCTION]\nThe value of the 'reason' field MUST be written in fluent Russian language (по-русски)."
         prompt += prompt_suffix
-        
-        with GigaChat(credentials=os.environ["GIGACHAT_CREDENTIALS"],
-                      verify_ssl_certs=False) as client:
-            response = client.chat(Chat(
-                model=self.model,
-                messages=[
-                    Messages(role=MessagesRole.SYSTEM, content=system_prompt),
-                    Messages(role=MessagesRole.USER, content=prompt),
-                ],
-            ))
+
+        with GigaChat(credentials=os.environ["GIGACHAT_CREDENTIALS"], verify_ssl_certs=False) as client:
+            response = client.chat(
+                Chat(
+                    model=self.model,
+                    messages=[
+                        Messages(role=MessagesRole.SYSTEM, content=system_prompt),
+                        Messages(role=MessagesRole.USER, content=prompt),
+                    ],
+                )
+            )
         return self._clean_json(response.choices[0].message.content)
 
     async def a_generate(self, prompt: str) -> str:
-        return await asyncio.get_event_loop().run_in_executor(
-            None, self.generate, prompt
-        )
+        return await asyncio.get_event_loop().run_in_executor(None, self.generate, prompt)
 
 
 def build_judge(provider: str, model: str, no_reasoning: bool = False, verbose: bool = False):
