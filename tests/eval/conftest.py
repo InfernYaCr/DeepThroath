@@ -5,6 +5,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from core.judges import build_judge
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent.parent.parent / "eval" / ".env")
@@ -45,12 +46,7 @@ def judge():
     import sys
 
     sys.path.insert(0, str(Path(__file__).parent.parent.parent / "eval"))
-    from core.judges import build_judge
-
     return build_judge(provider="openrouter", model="deepseek/deepseek-v3.2")
-
-
-# ── Session-level API response cache + log ───────────────────────────────────
 
 
 @pytest.fixture(scope="session")
@@ -88,7 +84,6 @@ def _save_api_log(_api_log_store):
 def api_response(case, http_client, _response_cache, _api_log_store) -> dict:
     """
     Возвращает ответ API для данного кейса.
-    Если уже был запрос с этим case_id — берёт из кеша (API не вызывается повторно).
     """
     case_id = case["id"]
 
@@ -103,7 +98,6 @@ def api_response(case, http_client, _response_cache, _api_log_store) -> dict:
         data = response.json()
         _response_cache[case_id] = data
 
-        # Пишем в лог только первый раз
         _api_log_store[case_id] = {
             "question": case["question"],
             "category": case["category"],

@@ -56,9 +56,6 @@ def sample_runs() -> list[dict]:
     ]
 
 
-# --- ar_by_category_bar ---
-
-
 def test_ar_by_category_bar_not_empty(sample_df):
     fig = ar_by_category_bar(sample_df)
     assert isinstance(fig, go.Figure)
@@ -80,15 +77,11 @@ def test_ar_by_category_bar_no_category_column():
 
 def test_ar_by_category_bar_categories_in_data(sample_df):
     fig = ar_by_category_bar(sample_df)
-    # Bar chart should have the categories
     bar_trace = fig.data[0]
     assert hasattr(bar_trace, "y")
     categories = list(bar_trace.y)
     assert "greetings" in categories
     assert "faq" in categories
-
-
-# --- ar_distribution_histogram ---
 
 
 def test_ar_distribution_histogram(sample_df):
@@ -109,9 +102,6 @@ def test_ar_distribution_histogram_empty_df():
     assert "нет данных" in fig.layout.title.text.lower()
 
 
-# --- quality_trend_line ---
-
-
 def test_quality_trend_line_empty():
     fig = quality_trend_line([])
     assert isinstance(fig, go.Figure)
@@ -122,7 +112,6 @@ def test_quality_trend_line_with_data(sample_runs):
     fig = quality_trend_line(sample_runs)
     assert isinstance(fig, go.Figure)
     assert len(fig.data) >= 1
-    # Should have both AR and pass rate traces
     assert len(fig.data) == 2
 
 
@@ -133,13 +122,9 @@ def test_quality_trend_line_single_run():
     assert len(fig.data) > 0
 
 
-# --- faithfulness_vs_relevancy_scatter ---
-
-
 def test_faithfulness_vs_relevancy_scatter(sample_df):
     fig = faithfulness_vs_relevancy_scatter(sample_df)
     assert isinstance(fig, go.Figure)
-    # Should have data (2 records have both scores)
     assert len(fig.data) > 0
 
 
