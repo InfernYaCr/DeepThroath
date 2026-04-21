@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useMemo } from 'react';
-import { 
-  PieChart, Pie, Cell, Tooltip, ResponsiveContainer, 
+import {
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
   LineChart, Line, AreaChart, Area
 } from 'recharts';

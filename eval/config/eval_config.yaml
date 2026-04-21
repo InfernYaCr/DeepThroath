@@ -1,5 +1,5 @@
 max_workers: 3
-default_judge: qwen-235b-or
+default_judge: gpt4o-mini-or
 metrics:
   answer_relevancy: true
   faithfulness: true

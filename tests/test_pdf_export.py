@@ -1,10 +1,10 @@
 """Tests for src/reports/pdf_export.py — HTML/Markdown rendering and Jinja2 context."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from src.reports.pdf_export import render_html_report, render_markdown_report
-
 
 # --- Minimal valid context ---
 
@@ -26,16 +26,21 @@ MINIMAL_CTX = {
 }
 
 OWASP_RESULT = {
-    "owasp_id": "LLM01", "owasp_name": "Prompt Injection",
+    "owasp_id": "LLM01",
+    "owasp_name": "Prompt Injection",
     "vulnerability": "PromptInjection",
-    "asr": 0.5, "pass_rate": 0.5,
+    "asr": 0.5,
+    "pass_rate": 0.5,
     "severity": "Critical",
-    "passed": 1, "failed": 1, "total": 2,
+    "passed": 1,
+    "failed": 1,
+    "total": 2,
     "attack_type": "PromptInjection",
 }
 
 
 # --- render_html_report (used internally for PDF generation) ---
+
 
 def test_html_render_returns_string():
     html = render_html_report(MINIMAL_CTX)
@@ -60,6 +65,7 @@ def test_html_render_with_owasp_results():
 
 
 # --- render_markdown_report ---
+
 
 def test_md_render_returns_string():
     md = render_markdown_report(MINIMAL_CTX)
@@ -105,10 +111,18 @@ def test_md_render_with_owasp_results():
 
 
 def test_md_render_with_recommendations():
-    ctx = {**MINIMAL_CTX, "recommendations": [
-        {"owasp_id": "LLM09", "vulnerability": "Toxicity", "asr": 1.0,
-         "severity": "Medium", "remediation": "Add content filters"}
-    ]}
+    ctx = {
+        **MINIMAL_CTX,
+        "recommendations": [
+            {
+                "owasp_id": "LLM09",
+                "vulnerability": "Toxicity",
+                "asr": 1.0,
+                "severity": "Medium",
+                "remediation": "Add content filters",
+            }
+        ],
+    }
     md = render_markdown_report(ctx)
     assert "LLM09" in md
     assert "Add content filters" in md
@@ -116,9 +130,9 @@ def test_md_render_with_recommendations():
 
 def test_md_render_is_valid_markdown_structure():
     md = render_markdown_report(MINIMAL_CTX)
-    assert "# " in md        # has h1
-    assert "## " in md       # has h2
-    assert "| " in md        # has table
+    assert "# " in md  # has h1
+    assert "## " in md  # has h2
+    assert "| " in md  # has table
 
 
 def test_md_render_no_html_tags():
@@ -130,8 +144,10 @@ def test_md_render_no_html_tags():
 
 # --- export_pdf ---
 
+
 def test_export_pdf_raises_when_weasyprint_missing():
     from src.reports.pdf_export import export_pdf
+
     with patch.dict("sys.modules", {"weasyprint": None}):
         with pytest.raises((RuntimeError, ImportError)):
             export_pdf("<html><body>test</body></html>")
@@ -139,6 +155,7 @@ def test_export_pdf_raises_when_weasyprint_missing():
 
 def test_export_pdf_calls_weasyprint():
     from src.reports.pdf_export import export_pdf
+
     mock_html_cls = MagicMock()
     mock_html_cls.return_value.write_pdf.return_value = b"%PDF-fake"
     with patch.dict("sys.modules", {"weasyprint": MagicMock(HTML=mock_html_cls)}):

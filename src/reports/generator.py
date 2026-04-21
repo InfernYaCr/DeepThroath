@@ -26,9 +26,7 @@ def calculate_security_score(df: pd.DataFrame) -> float:
 
 def _top_vulnerabilities(df: pd.DataFrame, n: int = 3) -> list[dict]:
     df2 = df.copy()
-    df2["_severity_resolved"] = df2["vulnerability"].map(
-        lambda v: get_owasp_category(v).severity.value
-    )
+    df2["_severity_resolved"] = df2["vulnerability"].map(lambda v: get_owasp_category(v).severity.value)
     top = (
         df2[df2["_severity_resolved"].isin([Severity.CRITICAL, Severity.HIGH])]
         .sort_values("asr", ascending=False)
@@ -61,13 +59,15 @@ def _evidence_dialogs(df: pd.DataFrame) -> list[dict]:
                 convs = []
         failed = [c for c in convs if c.get("score") == 1]
         if failed:
-            evidence.append({
-                "vulnerability": row["vulnerability"],
-                "owasp_id": row["owasp_id"],
-                "severity": row["severity"],
-                "attack_type": row["attack_type"],
-                "dialog": failed[0],
-            })
+            evidence.append(
+                {
+                    "vulnerability": row["vulnerability"],
+                    "owasp_id": row["owasp_id"],
+                    "severity": row["severity"],
+                    "attack_type": row["attack_type"],
+                    "dialog": failed[0],
+                }
+            )
     return evidence
 
 
@@ -79,12 +79,14 @@ def _recommendations(df: pd.DataFrame) -> list[dict]:
         if owasp_id in seen:
             continue
         seen.add(owasp_id)
-        recs.append({
-            "owasp_id": owasp_id,
-            "severity": row["severity"],
-            "vulnerability": row["vulnerability"],
-            "remediation": _REMEDIATION_MAP.get(owasp_id, "Review OWASP LLM Top 10 guidelines."),
-        })
+        recs.append(
+            {
+                "owasp_id": owasp_id,
+                "severity": row["severity"],
+                "vulnerability": row["vulnerability"],
+                "remediation": _REMEDIATION_MAP.get(owasp_id, "Review OWASP LLM Top 10 guidelines."),
+            }
+        )
     return recs
 
 
@@ -130,7 +132,9 @@ def build_report_context(
         "recommendations": _recommendations(df),
         "methodology": {
             "attacks": sorted(df["attack_type"].unique().tolist()) if not df.empty else [],
-            "vulnerabilities": sorted([get_owasp_category(v).name for v in df["vulnerability"].unique()]) if not df.empty else [],
+            "vulnerabilities": sorted([get_owasp_category(v).name for v in df["vulnerability"].unique()])
+            if not df.empty
+            else [],
             "simulations": int(df["total"].max()) if not df.empty else 0,
         },
     }

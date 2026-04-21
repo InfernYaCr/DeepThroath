@@ -8,6 +8,7 @@ Usage in runner:
     judge = build_judge(provider="openrouter", model="google/gemini-flash-1.5")
     # then pass to deepteam metrics / red_team()
 """
+
 import os
 from typing import Any
 
@@ -26,6 +27,7 @@ class OpenRouterJudge(DeepEvalBaseLLM):
 
     def load_model(self) -> Any:
         from openai import OpenAI
+
         return OpenAI(
             api_key=self._api_key,
             base_url="https://openrouter.ai/api/v1",
@@ -42,6 +44,7 @@ class OpenRouterJudge(DeepEvalBaseLLM):
 
     async def a_generate(self, prompt: str) -> str:
         from openai import AsyncOpenAI
+
         client = AsyncOpenAI(
             api_key=self._api_key,
             base_url="https://openrouter.ai/api/v1",
@@ -72,6 +75,7 @@ class OllamaJudge(DeepEvalBaseLLM):
 
     def load_model(self) -> Any:
         from openai import OpenAI
+
         return OpenAI(api_key="ollama", base_url=f"{self._base_url}/v1")
 
     def generate(self, prompt: str) -> str:
@@ -85,6 +89,7 @@ class OllamaJudge(DeepEvalBaseLLM):
 
     async def a_generate(self, prompt: str) -> str:
         from openai import AsyncOpenAI
+
         client = AsyncOpenAI(api_key="ollama", base_url=f"{self._base_url}/v1")
         response = await client.chat.completions.create(
             model=self.model_name,
@@ -98,27 +103,24 @@ class OllamaJudge(DeepEvalBaseLLM):
 
 JUDGE_PRESETS: dict[str, dict] = {
     # OpenAI (default deepeval judge — best quality)
-    "gpt-4o":       {"provider": "openai",      "model": "gpt-4o"},
-    "gpt-4o-mini":  {"provider": "openai",      "model": "gpt-4o-mini"},   # cheapest OpenAI
-
+    "gpt-4o": {"provider": "openai", "model": "gpt-4o"},
+    "gpt-4o-mini": {"provider": "openai", "model": "gpt-4o-mini"},  # cheapest OpenAI
     # Anthropic
-    "haiku":        {"provider": "anthropic",   "model": "claude-haiku-4-5-20251001"},
-
+    "haiku": {"provider": "anthropic", "model": "claude-haiku-4-5-20251001"},
     # OpenRouter — cheap options
-    "gemini-flash": {"provider": "openrouter",  "model": "google/gemini-2.0-flash-001"},
-    "llama3-70b":   {"provider": "openrouter",  "model": "meta-llama/llama-3.3-70b-instruct"},
-    "mistral-7b":   {"provider": "openrouter",  "model": "mistralai/mistral-7b-instruct"},
-    "qwen-2.5-72b": {"provider": "openrouter",  "model": "qwen/qwen-2.5-72b-instruct"},
+    "gemini-flash": {"provider": "openrouter", "model": "google/gemini-2.0-flash-001"},
+    "llama3-70b": {"provider": "openrouter", "model": "meta-llama/llama-3.3-70b-instruct"},
+    "mistral-7b": {"provider": "openrouter", "model": "mistralai/mistral-7b-instruct"},
+    "qwen-2.5-72b": {"provider": "openrouter", "model": "qwen/qwen-2.5-72b-instruct"},
     # OpenAI via OpenRouter (reliable JSON output — recommended)
     "gpt-4o-mini-or": {"provider": "openrouter", "model": "openai/gpt-4o-mini"},
-    "gpt-4o-or":      {"provider": "openrouter", "model": "openai/gpt-4o"},
+    "gpt-4o-or": {"provider": "openrouter", "model": "openai/gpt-4o"},
     # Claude Haiku via OpenRouter
-    "haiku-or":       {"provider": "openrouter", "model": "anthropic/claude-3-haiku-20240307"},
-
+    "haiku-or": {"provider": "openrouter", "model": "anthropic/claude-3-haiku-20240307"},
     # Local (free)
-    "ollama-llama": {"provider": "ollama",      "model": "llama3.2"},
-    "ollama-mistral": {"provider": "ollama",    "model": "mistral"},
-    "ollama-phi":   {"provider": "ollama",      "model": "phi3"},
+    "ollama-llama": {"provider": "ollama", "model": "llama3.2"},
+    "ollama-mistral": {"provider": "ollama", "model": "mistral"},
+    "ollama-phi": {"provider": "ollama", "model": "phi3"},
 }
 
 

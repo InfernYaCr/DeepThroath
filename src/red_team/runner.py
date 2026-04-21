@@ -1,9 +1,12 @@
 import os
+import re
 from typing import Any, Optional
 
+import httpx
 from anthropic import AsyncAnthropic
-from openai import AsyncOpenAI
+from deepteam import red_team
 from deepteam.test_case import RTTurn
+from openai import AsyncOpenAI
 
 from src.red_team.attacks import (
     DEFAULT_ATTACKS,
@@ -13,6 +16,7 @@ from src.red_team.attacks import (
     build_attacks,
     build_vulnerabilities,
 )
+from src.red_team.judges import build_judge_from_preset
 
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
@@ -24,8 +28,7 @@ def _require_env(key: str) -> str:
     value = os.environ.get(key)
     if not value:
         raise EnvironmentError(
-            f"[runner] Missing required environment variable: {key}\n"
-            f"  → Add it to your .env file: {key}=your_key_here"
+            f"[runner] Missing required environment variable: {key}\n  → Add it to your .env file: {key}=your_key_here"
         )
     return value
 
@@ -110,7 +113,6 @@ def run_red_team(
     evaluation_model: Any = None,
 ) -> Any:
     """Run DeepTeam evaluation and return RiskAssessment."""
-    from deepteam import red_team
 
     attacks = build_attacks(attack_configs or DEFAULT_ATTACKS)
     vulnerabilities = build_vulnerabilities(vulnerability_configs or DEFAULT_VULNERABILITIES)
@@ -129,13 +131,10 @@ def run_red_team(
     return red_team(**kwargs)
 
 
-import re
-import httpx
-
 def get_value_by_path(obj: dict, path: str, default=None):
     if not path:
         return obj
-    keys = path.split('.')
+    keys = path.split(".")
     val = obj
     try:
         for k in keys:
@@ -151,11 +150,14 @@ def get_value_by_path(obj: dict, path: str, default=None):
     except Exception:
         return default
 
+
 def resolve_template_text(text: str, variables: dict) -> str:
     def replacer(match):
         var_name = match.group(1).strip()
         return str(variables.get(var_name, match.group(0)))
+
     return re.sub(r"\{\{([^}]+)\}\}", replacer, text)
+
 
 def resolve_template_recursive(template, variables: dict):
     if isinstance(template, str):
@@ -166,8 +168,10 @@ def resolve_template_recursive(template, variables: dict):
         return [resolve_template_recursive(item, variables) for item in template]
     return template
 
+
 def create_http_callback(api_config: dict):
     """Return an async callback that sends the attack payload to a custom HTTP API."""
+
     async def model_callback(input_text: str, messages: Optional[list[RTTurn]] = None) -> RTTurn:
         url = api_config.get("url")
         method = api_config.get("method", "POST").upper()
@@ -186,23 +190,24 @@ def create_http_callback(api_config: dict):
                     resp = await client.get(url, headers=headers, params=payload)
                 else:
                     return RTTurn(role="assistant", content=f"[ERROR: Unsupported HTTP method: {method}]")
-            
+
             if resp.status_code != 200:
                 return RTTurn(role="assistant", content=f"[ERROR: API {resp.status_code} at {url}]")
-            
+
             data = resp.json()
             ex_answer = api_config.get("extractors", {}).get("answer", "answer")
             answer = get_value_by_path(data, ex_answer, None)
-            
+
             if answer is None:
                 answer = f"[ERROR: Extractor path '{ex_answer}' failed to find answer in {resp.text[:100]}]"
-                
+
             return RTTurn(role="assistant", content=str(answer))
-            
+
         except Exception as e:
             return RTTurn(role="assistant", content=f"[ERROR: HTTP Call failed: type={type(e).__name__} msg={e}]")
 
     return model_callback
+
 
 def run(
     model: str = "",
@@ -216,7 +221,6 @@ def run(
     api_config: dict | None = None,
 ) -> Any:
     """Entry point for script/CLI usage."""
-    from src.red_team.judges import build_judge_from_preset
 
     if api_config:
         callback = create_http_callback(api_config)

@@ -12,7 +12,7 @@
     <div class="header-logo">🛡️ DeepThroath Security</div>
     <h1>Отчет о безопасности LLM</h1>
     <h2>{{ client_name }}</h2>
-    
+
     <div class="score-container">
         <div class="score-badge">
             <span class="score-num">{{ security_score }}</span>
@@ -101,7 +101,7 @@
     <h2 class="section-title">2. Методология и метрики</h2>
     <div class="method-content">
         <p>Тестирование проводилось методом имитации враждебных атак. Каждое взаимодействие оценивается независимой <strong>моделью-судьей (LLM-as-a-Judge)</strong>.</p>
-        
+
         <div class="metric-explainer">
             <div class="metric-item">
                 <strong>ASR (Attack Success Rate):</strong> Процент атак, которые привели к небезопасному ответу модели. Чем ниже ASR, тем лучше защита.
@@ -176,7 +176,7 @@
 <section>
     <h2 class="section-title">4. Примеры успешных атак (Evidence)</h2>
     <p class="subtitle">Ниже приведены реальные диалоги, в которых защита модели была обойдена.</p>
-    
+
     {% for ev in evidence_dialogs %}
     <div class="evidence-card">
         <div class="evidence-header">

@@ -31,7 +31,7 @@ export async function GET(request: Request) {
 
     let projectRoot = process.cwd();
     let evalResultsDir = path.join(projectRoot, 'eval', 'results');
-    
+
     if (!fs.existsSync(evalResultsDir)) {
         projectRoot = path.join(process.cwd(), '..');
         evalResultsDir = path.join(projectRoot, 'eval', 'results');
@@ -42,9 +42,9 @@ export async function GET(request: Request) {
     }
 
     let scans: {label: string, value: string, timestamp: number}[] = [];
-    
+
     const entries = fs.readdirSync(evalResultsDir, { withFileTypes: true });
-    
+
     entries.filter(e => e.isFile() && e.name.endsWith('metrics.json')).forEach(e => {
         scans.push({
             label: parseScanLabel(e.name),
@@ -53,7 +53,7 @@ export async function GET(request: Request) {
         });
     });
 
-    entries.filter(e => e.isDirectory()).forEach(d => {
+    entries.filter(e => e.isDirectory() && !e.name.endsWith('_ragas')).forEach(d => {
         const metricPath = path.join(evalResultsDir, d.name, 'metrics.json');
         if (fs.existsSync(metricPath)) {
             scans.push({
@@ -67,7 +67,7 @@ export async function GET(request: Request) {
     scans.sort((a, b) => b.timestamp - a.timestamp);
 
     let selectedValue = scanFile && scanFile !== 'latest' ? scanFile : (scans[0]?.value || null);
-    
+
     if (!selectedValue) {
         return NextResponse.json({ error: "Нет логов качества (RAG)", metrics: [], allScans: [] }, { status: 404 });
     }

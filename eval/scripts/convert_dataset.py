@@ -9,6 +9,7 @@
   python eval/scripts/convert_dataset.py eval/top_k/20260329_173829_exp_top_k_10.json
   python eval/scripts/convert_dataset.py eval/top_k/some_file.json --out eval/datasets/my_dataset.json
 """
+
 import argparse
 import json
 import sys
@@ -29,21 +30,24 @@ def convert(src: Path, dst: Path) -> None:
             print(f"[skip] #{i} missing query or answer")
             continue
 
-        dataset.append({
-            "id": f"TC-{i:03d}",
-            "category": rec["intent"],           # API-compatible intent key
-            "question": rec["user_query"],
-            "expected_output": rec.get("expected_answer") or "",
-            "actual_output": rec.get("actual_answer") or "",
-            "_source_session": rec.get("session_id"),
-            "_source_category": rec.get("category"),  # human-readable category
-        })
+        dataset.append(
+            {
+                "id": f"TC-{i:03d}",
+                "category": rec["intent"],  # API-compatible intent key
+                "question": rec["user_query"],
+                "expected_output": rec.get("expected_answer") or "",
+                "actual_output": rec.get("actual_answer") or "",
+                "_source_session": rec.get("session_id"),
+                "_source_category": rec.get("category"),  # human-readable category
+            }
+        )
 
     dst.write_text(json.dumps(dataset, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Конвертировано: {len(dataset)} записей → {dst}")
 
     # Статистика по категориям
     from collections import Counter
+
     cats = Counter(d["category"] for d in dataset)
     for cat, cnt in sorted(cats.items()):
         print(f"  {cat:<20} {cnt}")

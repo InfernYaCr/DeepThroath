@@ -1,4 +1,5 @@
 """Tests for src/data/eval_storage.py"""
+
 import json
 from pathlib import Path
 
@@ -10,8 +11,8 @@ import pytest
 def eval_results_dir(tmp_path, monkeypatch):
     """Redirect eval_storage module to a temp directory."""
     monkeypatch.setenv("EVAL_RESULTS_DIR", str(tmp_path))
-    import importlib
     import src.data.eval_storage as es
+
     es.EVAL_RESULTS_DIR = tmp_path
     return tmp_path
 
@@ -62,9 +63,11 @@ def _write_run(base_dir: Path, run_name: str, metrics: list) -> Path:
 
 # --- list_eval_runs ---
 
+
 def test_list_eval_runs_empty_when_no_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("EVAL_RESULTS_DIR", str(tmp_path / "nonexistent"))
     import src.data.eval_storage as es
+
     es.EVAL_RESULTS_DIR = tmp_path / "nonexistent"
     result = es.list_eval_runs()
     assert result == []
@@ -72,6 +75,7 @@ def test_list_eval_runs_empty_when_no_dir(tmp_path, monkeypatch):
 
 def test_list_eval_runs_returns_entries(eval_results_dir, sample_metrics):
     from src.data.eval_storage import list_eval_runs
+
     _write_run(eval_results_dir, "20260101_120000_test", sample_metrics)
     runs = list_eval_runs()
     assert len(runs) == 1
@@ -85,6 +89,7 @@ def test_list_eval_runs_returns_entries(eval_results_dir, sample_metrics):
 
 def test_list_eval_runs_newest_first(eval_results_dir, sample_metrics):
     from src.data.eval_storage import list_eval_runs
+
     _write_run(eval_results_dir, "20260101_120000_first", sample_metrics)
     _write_run(eval_results_dir, "20260102_120000_second", sample_metrics)
     runs = list_eval_runs()
@@ -95,8 +100,10 @@ def test_list_eval_runs_newest_first(eval_results_dir, sample_metrics):
 
 # --- load_eval_run ---
 
+
 def test_load_eval_run_returns_dataframe(eval_results_dir, sample_metrics):
     from src.data.eval_storage import load_eval_run
+
     metrics_file = _write_run(eval_results_dir, "run1", sample_metrics)
     df = load_eval_run(metrics_file)
     assert isinstance(df, pd.DataFrame)
@@ -106,6 +113,7 @@ def test_load_eval_run_returns_dataframe(eval_results_dir, sample_metrics):
 
 def test_load_eval_run_empty_json(eval_results_dir):
     from src.data.eval_storage import load_eval_run
+
     run_dir = eval_results_dir / "empty_run"
     run_dir.mkdir()
     metrics_file = run_dir / "metrics.json"
@@ -117,18 +125,22 @@ def test_load_eval_run_empty_json(eval_results_dir):
 
 # --- quality_score ---
 
+
 def test_quality_score_empty_returns_zero():
     from src.data.eval_storage import quality_score
+
     assert quality_score(pd.DataFrame()) == 0.0
 
 
 def test_quality_score_none_returns_zero():
     from src.data.eval_storage import quality_score
+
     assert quality_score(None) == 0.0
 
 
 def test_quality_score_calculation(sample_metrics):
     from src.data.eval_storage import quality_score
+
     df = pd.DataFrame(sample_metrics)
     score = quality_score(df)
     # (0.85 + 0.6) / 2 * 100 = 72.5
@@ -137,16 +149,20 @@ def test_quality_score_calculation(sample_metrics):
 
 def test_quality_score_all_passed():
     from src.data.eval_storage import quality_score
-    df = pd.DataFrame([
-        {"answer_relevancy_score": 0.9},
-        {"answer_relevancy_score": 0.8},
-        {"answer_relevancy_score": 1.0},
-    ])
+
+    df = pd.DataFrame(
+        [
+            {"answer_relevancy_score": 0.9},
+            {"answer_relevancy_score": 0.8},
+            {"answer_relevancy_score": 1.0},
+        ]
+    )
     score = quality_score(df)
     assert abs(score - 90.0) < 0.01
 
 
 def test_quality_score_missing_column():
     from src.data.eval_storage import quality_score
+
     df = pd.DataFrame([{"session_id": "s1", "category": "test"}])
     assert quality_score(df) == 0.0

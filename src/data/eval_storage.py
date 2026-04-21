@@ -27,16 +27,20 @@ def list_eval_runs() -> list[dict]:
             df = load_eval_run(metrics_file)
             if df.empty:
                 continue
-            ar_mean = float(df["answer_relevancy_score"].dropna().mean()) if "answer_relevancy_score" in df.columns else 0.0
+            ar_mean = (
+                float(df["answer_relevancy_score"].dropna().mean()) if "answer_relevancy_score" in df.columns else 0.0
+            )
             pass_rate = float(df["answer_relevancy_passed"].mean()) if "answer_relevancy_passed" in df.columns else 0.0
             label = f"{run_dir.name} | AR={ar_mean:.3f} | pass={pass_rate:.0%}"
-            result.append({
-                "path": metrics_file,
-                "label": label,
-                "df": df,
-                "ar_mean": ar_mean,
-                "pass_rate": pass_rate,
-            })
+            result.append(
+                {
+                    "path": metrics_file,
+                    "label": label,
+                    "df": df,
+                    "ar_mean": ar_mean,
+                    "pass_rate": pass_rate,
+                }
+            )
         except Exception as e:
             logging.warning(f"[eval_storage] Skipping broken run {run_dir.name}: {e}")
             continue

@@ -11,7 +11,7 @@
 | **CP** Contextual Precision | 0.7 | Нужные чанки идут первыми в выдаче |
 | **CR** Contextual Recall | 0.6 | Все нужные чанки были найдены |
 
-> FA, CP, CR вычисляются только при наличии `retrieval_context`.  
+> FA, CP, CR вычисляются только при наличии `retrieval_context`.
 > В офлайн-режиме (датасет без чанков) считается только AR.
 
 ---
@@ -123,7 +123,7 @@ pytest tests/eval/ -v --api-url https://your-api.example.com
 
 Сырые ответы API сохраняются в `tests/logs/<timestamp>_api_responses.json`.
 
-> **Отличие от run_eval.py:** pytest — санити-чек (pass/fail).  
+> **Отличие от run_eval.py:** pytest — санити-чек (pass/fail).
 > `run_eval.py` генерирует полный MD-отчёт и CSV, которые видны в дашборде.
 
 ---
@@ -216,7 +216,7 @@ python scripts/run_eval.py --input datasets/file.json --online
 
 ## Устранение проблем
 
-**FA / CP / CR не считаются**  
+**FA / CP / CR не считаются**
 Используйте `--online` — без живого API чанки недоступны.
 
 **Ошибки 429 (Rate Limit)**
@@ -224,7 +224,7 @@ python scripts/run_eval.py --input datasets/file.json --online
 python scripts/run_eval.py --input file.json --workers 2
 ```
 
-**504 Gateway Timeout**  
+**504 Gateway Timeout**
 Уменьшите параллелизм или повторите позже. Завершённые записи сохранены в чекпоинте.
 
 **Перегенерировать отчёт**
