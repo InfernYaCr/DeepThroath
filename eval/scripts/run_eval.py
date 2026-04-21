@@ -46,6 +46,77 @@ def _find_target(targets_path: Path, name: str) -> dict:
     )
 
 
+def run_eval_scan(
+    dataset: str,
+    model: str,
+    metrics: list[str] | None = None,
+    n_samples: int = 50
+) -> Path:
+    """
+    Запуск RAG Evaluation (callable from FastAPI).
+
+    Args:
+        dataset: Имя датасета из eval/datasets/ (без расширения .json)
+        model: Модель судьи (gpt4o-mini-or, gemini-flash, etc.)
+        metrics: Метрики DeepEval (пока не используется, берем все)
+        n_samples: Количество примеров для оценки
+
+    Returns:
+        Path к директории с результатами (eval/results/{timestamp}_{dataset})
+    """
+    eval_dir = Path(__file__).parent.parent
+    default_config = eval_dir / "config" / "eval_config.yaml"
+    default_targets = eval_dir / "config" / "targets.yaml"
+
+    # Найти файл датасета
+    datasets_dir = eval_dir / "datasets"
+    dataset_path = datasets_dir / f"{dataset}.json"
+    if not dataset_path.exists():
+        raise FileNotFoundError(f"Dataset not found: {dataset_path}")
+
+    cfg = _load_yaml(default_config)
+    max_workers = cfg.get("max_workers", 10)
+
+    try:
+        target = _find_target(default_targets, model)
+    except ValueError as e:
+        raise ValueError(f"Judge model not found: {e}")
+
+    threshold = target.get("threshold", 0.7)
+    provider = target["provider"]
+    model_name = target["model"]
+
+    print(f"[+] Dataset   : {dataset_path}")
+    print(f"[+] Judge     : {target['name']} ({provider} / {model_name})")
+    print(f"[+] Threshold : {threshold}")
+    print(f"[+] Workers   : {max_workers}")
+    print(f"[+] Samples   : {n_samples}")
+
+    # Build judge config
+    judge_config = {
+        "provider": provider,
+        "model": model_name,
+        "name": target["name"],
+        "no_reasoning": target.get("no_reasoning", False),
+    }
+
+    # Import and run eval pipeline
+    sys.path.insert(0, str(eval_dir))
+    from eval_rag_metrics import run_eval
+
+    results_dir = run_eval(
+        input_path=str(dataset_path),
+        judge_config=judge_config,
+        max_workers=max_workers,
+        threshold=threshold,
+        api_url=None,  # offline mode
+        api_config_dict=None,
+        limit=n_samples,
+    )
+
+    return results_dir
+
+
 def main() -> None:
     eval_dir = Path(__file__).parent.parent
     default_config = eval_dir / "config" / "eval_config.yaml"

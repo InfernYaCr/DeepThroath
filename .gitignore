@@ -63,7 +63,7 @@ results/*.parquet
 .mcp.json
 
 # Internal dev files
-CLAUDE.md
+# CLAUDE.md
 PLAN.md
 changelog.md
 

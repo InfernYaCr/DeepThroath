@@ -1,71 +1,54 @@
 import { NextResponse } from 'next/server';
-import { spawn } from 'child_process';
-import path from 'path';
-import fs from 'fs/promises';
-import { randomUUID } from 'crypto';
+
+const FASTAPI_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export async function POST(req: Request) {
-    try {
-        const body = await req.json();
-        
-        // Обязательные параметры
-        if (!body.api_contract || !body.dataset_path) {
-            return NextResponse.json({ error: "Missing api_contract or dataset_path" }, { status: 400 });
-        }
+  try {
+    const body = await req.json();
 
-        // Мы запускаемся из web/, поэтому корень на один уровень выше
-        const projectRoot = path.resolve(process.cwd(), '..');
-        
-        // Создаем временный конфигурационный файл API Contract
-        const tmpConfigName = `.tmp_api_config_${randomUUID()}.json`;
-        const tmpConfigPath = path.join(projectRoot, tmpConfigName);
-
-        await fs.writeFile(tmpConfigPath, JSON.stringify(body.api_contract, null, 2), 'utf-8');
-
-        // Подготавливаем вызов
-        const pythonExecutable = path.join(projectRoot, '.venv', 'bin', 'python');
-        const scriptPath = path.join(projectRoot, 'eval', 'scripts', 'run_eval.py');
-        const inputPath = path.join(projectRoot, body.dataset_path);
-
-        const args = [
-            scriptPath,
-            '--input', inputPath,
-            '--dynamic-api-config', tmpConfigPath
-        ];
-
-        if (body.judge) {
-            args.push('--judge', body.judge);
-        }
-        if (body.limit) {
-            args.push('--limit', body.limit.toString());
-        }
-
-        console.log(`>>> Starting dynamic pipeline: ${pythonExecutable} ${args.join(' ')}`);
-
-        // Запуск в отсоединенном (фоновом) режиме асинхронно
-        const p = spawn(pythonExecutable, args, { cwd: projectRoot });
-
-        p.on('exit', async (code) => {
-            console.log(`>>> Pipeline exited with code ${code}`);
-            try {
-                // Подчищаем временный контракт когда процесс завершен
-                await fs.unlink(tmpConfigPath);
-            } catch (e) {
-                console.error("Failed to delete temp config", e);
-            }
-        });
-
-        // Направляем логи в консоль дашборда
-        p.stdout.on('data', (d) => process.stdout.write(d.toString()));
-        p.stderr.on('data', (d) => process.stderr.write(d.toString()));
-
-        return NextResponse.json({
-            success: true,
-            message: "Pipeline successfully spawned",
-            job_id: tmpConfigName,
-        });
-
-    } catch (e: any) {
-        return NextResponse.json({ error: e.message || "Unknown error" }, { status: 500 });
+    // Валидация
+    if (!body.dataset || !body.model) {
+      return NextResponse.json(
+        { error: 'Missing required fields: dataset, model' },
+        { status: 400 }
+      );
     }
+
+    // Запрос к FastAPI микросервису
+    const response = await fetch(`${FASTAPI_URL}/api/runner/eval`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        dataset: body.dataset,
+        model: body.model,
+        metrics: body.metrics || ['answer_relevancy', 'faithfulness', 'contextual_precision'],
+        n_samples: body.n_samples || 50,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      return NextResponse.json(
+        { error: error.detail || 'Failed to create job' },
+        { status: response.status }
+      );
+    }
+
+    const { job_id, status } = await response.json();
+
+    return NextResponse.json({
+      job_id,
+      status,
+      message: 'Evaluation started. Poll /api/jobs/{job_id}/status for updates.',
+    });
+
+  } catch (error: unknown) {
+    console.error('Error creating eval job:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
 }

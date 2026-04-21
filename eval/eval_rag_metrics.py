@@ -24,6 +24,7 @@ import json
 import csv
 import asyncio
 import threading
+import yaml
 from pathlib import Path
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -685,7 +686,7 @@ def evaluate_record(rec: dict, index: int, total: int,
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def main(input_path: str, fail_below: float | None = None, judge_override: str | None = None):
+def main(input_path: str, fail_below: float | None = None, judge_override: str | None = None) -> Path:
     global JUDGE_PROVIDER, JUDGE_MODEL_NAME, JUDGE_NO_REASONING
 
     # Apply judge override from targets.yaml alias
@@ -857,13 +858,15 @@ def main(input_path: str, fail_below: float | None = None, judge_override: str |
         else:
             print(f"\n[QUALITY GATE PASSED] Все метрики ≥ {fail_below}")
 
+    return run_dir
+
 
 # ── Programmatic entry point ──────────────────────────────────────────────────
 
 def run_eval(input_path: str, judge_config: dict, max_workers: int = 10,
              threshold: float = 0.7, api_url: str | None = None,
              api_config_dict: dict | None = None,
-             limit: int | None = None) -> None:
+             limit: int | None = None) -> Path:
     """Run the eval pipeline with externally supplied judge configuration.
 
     Args:
@@ -874,6 +877,9 @@ def run_eval(input_path: str, judge_config: dict, max_workers: int = 10,
         api_url:      If set — online mode: fetch fresh answers + chunks from the API (legacy mode).
         api_config_dict: Detailed API contract (dynamic mode).
         limit:        If set — process only the first N records.
+
+    Returns:
+        Path к директории с результатами (eval/results/{timestamp}_{dataset})
     """
     global JUDGE_PROVIDER, JUDGE_MODEL_NAME, MAX_WORKERS, THRESHOLD, API_URL, API_CONFIG, LIMIT, API_LOG, ERRORS_LOG  # noqa: PLW0603
     global THRESHOLD_AR, THRESHOLD_FA, THRESHOLD_CP, THRESHOLD_CR, JUDGE_NO_REASONING  # noqa: PLW0603
@@ -898,7 +904,7 @@ def run_eval(input_path: str, judge_config: dict, max_workers: int = 10,
     elif API_URL:
         print(f"[+] Онлайн-режим (Legacy): {API_URL}/api/v1/eval/rag")
 
-    main(input_path)
+    return main(input_path)
 
 
 if __name__ == "__main__":

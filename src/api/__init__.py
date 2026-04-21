@@ -1,0 +1,1 @@
+"""FastAPI микросервис для DeepThroath."""
