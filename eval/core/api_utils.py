@@ -129,6 +129,7 @@ def fetch_from_api(
             "question": question,
             "category": category,
             "answer": answer,
+            "expected_output": rec.get("expected_output") or rec.get("expected_answer", ""),
             "chunks_count": len(chunks_text),
             "retrieved_chunks": [{"content": c} for c in chunks_text],
             "api_url": url,
