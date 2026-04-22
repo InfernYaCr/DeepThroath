@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import re
 
@@ -20,6 +21,7 @@ class OpenRouterJudge(DeepEvalBaseLLM):
         self.client = OpenAI(
             api_key=api_key,
             base_url="https://openrouter.ai/api/v1",
+            timeout=300,
         )
 
     def get_model_name(self) -> str:
@@ -29,9 +31,33 @@ class OpenRouterJudge(DeepEvalBaseLLM):
         return self.client
 
     def _clean_json(self, text: str) -> str:
+        """Агрессивная очистка и валидация JSON."""
+        # 1. Базовая очистка от markdown
+        text = re.sub(r"```json\s*", "", text)
+        text = re.sub(r"```\s*", "", text)
+        
+        # 2. Попытка найти JSON-блок через regex
         match = re.search(r"(\{.*\}|\[.*\])", text, re.DOTALL)
         if match:
-            return match.group(0)
+            candidate = match.group(0)
+            try:
+                # Проверяем, валиден ли он
+                parsed = json.loads(candidate)
+                return json.dumps(parsed, ensure_ascii=False)
+            except json.JSONDecodeError:
+                # Если нет, пробуем просто очистить края
+                text = candidate
+
+        # 3. Крайняя мера: чистим всё до { и после }
+        start = text.find('{')
+        end = text.rfind('}')
+        if start != -1 and end != -1:
+            try:
+                candidate = text[start:end+1]
+                return json.dumps(json.loads(candidate), ensure_ascii=False)
+            except:
+                pass
+        
         return text.strip()
 
     def generate(self, prompt: str) -> str:
@@ -55,6 +81,7 @@ class OpenRouterJudge(DeepEvalBaseLLM):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt},
             ],
+            response_format={"type": "json_object"},
         )
         return self._clean_json(response.choices[0].message.content)
 
@@ -77,9 +104,13 @@ class GigaChatJudge(DeepEvalBaseLLM):
         return GigaChat
 
     def _clean_json(self, text: str) -> str:
+        """Агрессивная очистка и валидация JSON для GigaChat."""
         match = re.search(r"(\{.*\}|\[.*\])", text, re.DOTALL)
         if match:
-            return match.group(0)
+            try:
+                return json.dumps(json.loads(match.group(0)), ensure_ascii=False)
+            except:
+                return match.group(0)
         return text.strip()
 
     def generate(self, prompt: str) -> str:
@@ -125,6 +156,7 @@ class LocalJudge(DeepEvalBaseLLM):
             api_key=api_key,
             base_url=base_url,
             default_headers=headers or {},
+            timeout=300,
         )
 
     def get_model_name(self) -> str:
@@ -134,9 +166,17 @@ class LocalJudge(DeepEvalBaseLLM):
         return self.client
 
     def _clean_json(self, text: str) -> str:
+        """Агрессивная очистка и валидация JSON для локальных моделей."""
+        text = re.sub(r"```json\s*", "", text)
+        text = re.sub(r"```\s*", "", text)
+
         match = re.search(r"(\{.*\}|\[.*\])", text, re.DOTALL)
         if match:
-            return match.group(0)
+            try:
+                # Гарантируем валидный JSON на выходе
+                return json.dumps(json.loads(match.group(0)), ensure_ascii=False)
+            except:
+                return match.group(0)
         return text.strip()
 
     def generate(self, prompt: str) -> str:
@@ -158,6 +198,7 @@ class LocalJudge(DeepEvalBaseLLM):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt},
             ],
+            response_format={"type": "json_object"},
         )
         return self._clean_json(response.choices[0].message.content)
 

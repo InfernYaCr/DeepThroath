@@ -132,7 +132,11 @@ def run_eval(
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = {
             executor.submit(
-                evaluate_record, rec, i + 1, len(data), done, lock, run_dir, judge_obj, THRESHOLD_DEFAULTS, API_CONFIG
+                evaluate_record, 
+                rec, i + 1, len(data), 
+                done, lock, run_dir, 
+                judge_obj, THRESHOLD_DEFAULTS, 
+                API_CONFIG, None, API_LOG, ERRORS_LOG, PROGRESS_CALLBACK
             ): rec
             for i, rec in enumerate(data)
         }
