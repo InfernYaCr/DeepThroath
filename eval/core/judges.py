@@ -55,7 +55,7 @@ class OpenRouterJudge(DeepEvalBaseLLM):
             try:
                 candidate = text[start:end+1]
                 return json.dumps(json.loads(candidate), ensure_ascii=False)
-            except:
+            except Exception:
                 pass
         
         return text.strip()
@@ -109,7 +109,7 @@ class GigaChatJudge(DeepEvalBaseLLM):
         if match:
             try:
                 return json.dumps(json.loads(match.group(0)), ensure_ascii=False)
-            except:
+            except Exception:
                 return match.group(0)
         return text.strip()
 
@@ -175,7 +175,7 @@ class LocalJudge(DeepEvalBaseLLM):
             try:
                 # Гарантируем валидный JSON на выходе
                 return json.dumps(json.loads(match.group(0)), ensure_ascii=False)
-            except:
+            except Exception:
                 return match.group(0)
         return text.strip()
 

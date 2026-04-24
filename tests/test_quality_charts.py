@@ -3,7 +3,6 @@
 import pandas as pd
 import plotly.graph_objects as go
 import pytest
-
 from src.dashboard.quality_charts import (
     ar_by_category_bar,
     ar_distribution_histogram,

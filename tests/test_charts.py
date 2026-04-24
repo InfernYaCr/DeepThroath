@@ -1,6 +1,5 @@
 import pandas as pd
 import pytest
-
 from src.dashboard.charts import (
     asr_by_owasp_bar,
     overall_passrate_pie,
