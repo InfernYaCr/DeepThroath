@@ -34,7 +34,7 @@ export default function EvalDeepEvalTab() {
   const downloadFile = (type: "md" | "csv" | "json") => {
     if (!activeScan) return;
     const url = `/api/eval/report?scan=${encodeURIComponent(activeScan)}&type=${type}`;
-    
+
     // Use fetch + blob for more reliable downloads in Chrome/Safari.
     // This allows us to handle the file in memory and force a correct filename.
     fetch(url)
@@ -51,7 +51,7 @@ export default function EvalDeepEvalTab() {
         a.download = `${activeScan}_report.${type}`;
         document.body.appendChild(a);
         a.click();
-        
+
         // Clean up: remove the temporary URL and the link element
         window.URL.revokeObjectURL(downloadUrl);
         document.body.removeChild(a);

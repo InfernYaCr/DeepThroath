@@ -39,9 +39,9 @@ export async function GET(request: Request) {
 
     const stats = fs.statSync(filePath);
     // Read as Buffer to prevent encoding issues with large files or special characters
-    const content = fs.readFileSync(filePath); 
+    const content = fs.readFileSync(filePath);
     const mimeType = fileType === 'md' ? 'text/markdown; charset=utf-8' : 'text/csv; charset=utf-8';
-    
+
     // Clean filename and ensure it's quoted for browser compatibility
     const downloadName = (scanFile + '_' + fileName).replace(/\s+/g, '_');
 
