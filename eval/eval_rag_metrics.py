@@ -74,7 +74,13 @@ def run_eval(
         api_contract = {}
 
     if metrics:
-        api_contract["metrics"] = metrics
+        _metric_name_map = {
+            "answer_relevancy": "AR",
+            "faithfulness": "FA",
+            "contextual_precision": "CP",
+            "contextual_recall": "CR",
+        }
+        api_contract["metrics"] = [_metric_name_map.get(m, m) for m in metrics]
 
     API_CONFIG = api_contract
     PROGRESS_CALLBACK = progress_callback
@@ -135,7 +141,20 @@ def run_eval(
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = {
             executor.submit(
-                evaluate_record, rec, i + 1, len(data), done, lock, run_dir, judge_obj, THRESHOLD_DEFAULTS, API_CONFIG
+                evaluate_record,
+                rec,
+                i + 1,
+                len(data),
+                done,
+                lock,
+                run_dir,
+                judge_obj,
+                THRESHOLD_DEFAULTS,
+                API_CONFIG,
+                None,
+                API_LOG,
+                ERRORS_LOG,
+                PROGRESS_CALLBACK,
             ): rec
             for i, rec in enumerate(data)
         }
@@ -145,13 +164,11 @@ def run_eval(
                 results.append(res)
 
     # 5. Save Artifacts
-    if API_LOG:
-        with open(run_dir / "api_responses.json", "w", encoding="utf-8") as f:
-            json.dump(API_LOG, f, ensure_ascii=False, indent=2)
+    with open(run_dir / "api_responses.json", "w", encoding="utf-8") as f:
+        json.dump(API_LOG, f, ensure_ascii=False, indent=2)
 
-    if ERRORS_LOG:
-        with open(run_dir / "errors_log.json", "w", encoding="utf-8") as f:
-            json.dump(ERRORS_LOG, f, ensure_ascii=False, indent=2)
+    with open(run_dir / "errors_log.json", "w", encoding="utf-8") as f:
+        json.dump(ERRORS_LOG, f, ensure_ascii=False, indent=2)
 
     metrics_json = run_dir / "metrics.json"
     with open(metrics_json, "w", encoding="utf-8") as f:
