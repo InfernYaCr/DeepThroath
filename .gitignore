@@ -69,3 +69,11 @@ changelog.md
 
 # Client-specific scripts
 scripts/manjerok_*.py
+
+# Client datasets (не хранить в репо)
+eval/datasets/
+eval/datasets/**
+
+# Client API configs
+config/manjerok_api.json
+config/*_api.json
