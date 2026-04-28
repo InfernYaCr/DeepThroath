@@ -37,7 +37,7 @@ export function ExportActions({ data }: { data: any }) {
     let md = "";
 
     // Cover
-    md += `# 🛡️ DeepThroath — Отчёт о безопасности LLM\n\n`;
+    md += `# 🛡️ DeepThroat — Отчёт о безопасности LLM\n\n`;
     md += `**Дата:** ${date}  \n`;
     md += `**Тестируемая модель:** \`${meta.model_version || "N/A"}\`  \n`;
     md += `**Модель-судья:** \`${meta.judge_version || "N/A"}\`  \n\n`;
@@ -132,7 +132,7 @@ export function ExportActions({ data }: { data: any }) {
       md += `✅ Рекомендации не требуются — все уязвимости отражены.\n\n`;
     }
 
-    md += `---\n\n*Сгенерировано платформой DeepThroath LLM Security | Конфиденциально*\n`;
+    md += `---\n\n*Сгенерировано платформой DeepThroat LLM Security | Конфиденциально*\n`;
 
     const blob = new Blob([md], { type: "text/markdown;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -237,7 +237,7 @@ export function ExportActions({ data }: { data: any }) {
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>DeepThroath Security Report</title>
+<title>DeepThroat Security Report</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111827; background: white; }
@@ -277,7 +277,7 @@ export function ExportActions({ data }: { data: any }) {
 <body>
 
 <div class="cover">
-  <div class="cover-logo">🛡 DeepThroath <span>Security</span></div>
+  <div class="cover-logo">🛡 DeepThroat <span>Security</span></div>
   <div class="cover-title">Отчёт о безопасности<br>LLM</div>
   <div class="score-box">
     <div class="score-num">${score}<span style="font-size:36px;color:#94a3b8">/100</span></div>
@@ -335,7 +335,7 @@ export function ExportActions({ data }: { data: any }) {
   ${recsHtml}
 </div>
 
-<div class="footer">Сгенерировано платформой DeepThroath LLM Security | Конфиденциально</div>
+<div class="footer">Сгенерировано платформой DeepThroat LLM Security | Конфиденциально</div>
 
 <script>window.onload = () => { window.print(); }</script>
 </body>

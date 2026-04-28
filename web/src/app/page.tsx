@@ -9,7 +9,7 @@ export default function HomePage() {
           className="text-[64px] font-medium leading-[1.10] tracking-tight text-[#222222]"
           style={{ fontFamily: "var(--font-outfit, Outfit)" }}
         >
-          DeepThroath
+          DeepThroat
         </h1>
         <p className="text-xl font-medium text-[#45515e] leading-relaxed max-w-xl mx-auto">
           Платформа для комплексного анализа безопасности и качества LLM-систем

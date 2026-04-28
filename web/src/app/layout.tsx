@@ -15,7 +15,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "DeepThroath — Аналитика",
+  title: "DeepThroat — Аналитика",
   description: "Аналитика безопасности и качества для LLM",
 };
 
@@ -36,7 +36,7 @@ export default function RootLayout({
                 className="font-display font-600 text-xl tracking-tight text-[#181e25] hover:opacity-80 transition-opacity"
                 style={{ fontFamily: "var(--font-outfit, Outfit)", fontWeight: 600 }}
               >
-                DeepThroath
+                DeepThroat
               </a>
               <nav className="flex items-center gap-1">
                 <a
@@ -87,7 +87,7 @@ export default function RootLayout({
         <footer className="bg-[#181e25] text-white/80 mt-auto">
           <div className="max-w-[1400px] mx-auto px-6 py-8 flex items-center justify-between text-sm">
             <span style={{ fontFamily: "var(--font-outfit, Outfit)", fontWeight: 600 }} className="text-white">
-              DeepThroath
+              DeepThroat
             </span>
             <span className="text-white/40 text-xs">LLM Security & Quality Platform</span>
           </div>

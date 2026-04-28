@@ -30,9 +30,9 @@ export default function FAQPage() {
       ),
       items: [
         {
-          question: 'Что такое DeepThroath?',
+          question: 'Что такое DeepThroat?',
           answer: [
-            'DeepThroath — это платформа для тестирования безопасности и качества LLM-систем.',
+            'DeepThroat — это платформа для тестирования безопасности и качества LLM-систем.',
             'Платформа объединяет три ключевых инструмента:',
             '• Red Teaming — тестирование безопасности и устойчивости к атакам',
             '• Evaluate RAG — оценка качества RAG-систем',
@@ -40,9 +40,9 @@ export default function FAQPage() {
           ]
         },
         {
-          question: 'Для кого предназначен DeepThroath?',
+          question: 'Для кого предназначен DeepThroat?',
           answer: [
-            'DeepThroath создан для команд, работающих с LLM:',
+            'DeepThroat создан для команд, работающих с LLM:',
             '• Инженеры по ML/AI — для тестирования и оценки моделей',
             '• DevOps и QA — для автоматизированного тестирования',
             '• Security-специалисты — для проверки безопасности LLM',
@@ -82,7 +82,7 @@ export default function FAQPage() {
           ]
         },
         {
-          question: 'Как работает Red Teaming в DeepThroath?',
+          question: 'Как работает Red Teaming в DeepThroat?',
           answer: [
             '1. Выбор категории атаки (injection, jailbreak, toxicity и т.д.)',
             '2. Настройка параметров тестирования (количество запросов, severity level)',
@@ -139,7 +139,7 @@ export default function FAQPage() {
         {
           question: 'Какие метрики используются для оценки RAG?',
           answer: [
-            'DeepThroath оценивает RAG по следующим метрикам:',
+            'DeepThroat оценивает RAG по следующим метрикам:',
             '• Context Relevance — релевантность извлечённых документов к вопросу',
             '• Answer Relevance — релевантность ответа к вопросу',
             '• Faithfulness — соответствие ответа контексту (отсутствие галлюцинаций)',
@@ -261,9 +261,9 @@ export default function FAQPage() {
       ),
       items: [
         {
-          question: 'Как развернуть DeepThroath?',
+          question: 'Как развернуть DeepThroat?',
           answer: [
-            'DeepThroath состоит из двух компонентов:',
+            'DeepThroat состоит из двух компонентов:',
             '1. Frontend (Next.js):',
             '   • npm install && npm run dev',
             '   • Или Docker: docker build -t deepthroath-web .',
@@ -294,7 +294,7 @@ export default function FAQPage() {
         {
           question: 'Поддерживается ли CI/CD интеграция?',
           answer: [
-            'Да! DeepThroath можно интегрировать в CI/CD:',
+            'Да! DeepThroat можно интегрировать в CI/CD:',
             '• CLI режим для запуска тестов в пайплайнах',
             '• REST API для автоматизации',
             '• Webhooks для нотификаций',
@@ -326,9 +326,9 @@ export default function FAQPage() {
       ),
       items: [
         {
-          question: 'Безопасно ли отправлять данные через DeepThroath?',
+          question: 'Безопасно ли отправлять данные через DeepThroat?',
           answer: [
-            'DeepThroath не хранит ваши API ключи и промпты на внешних серверах:',
+            'DeepThroat не хранит ваши API ключи и промпты на внешних серверах:',
             '• Все запросы идут напрямую с вашего инстанса к вашему API',
             '• API ключи хранятся только в вашем .env или памяти браузера',
             '• Нет телеметрии или отправки данных третьим лицам',
@@ -347,7 +347,7 @@ export default function FAQPage() {
           ]
         },
         {
-          question: 'Можно ли использовать DeepThroath с конфиденциальными данными?',
+          question: 'Можно ли использовать DeepThroat с конфиденциальными данными?',
           answer: [
             'Да, при условии self-hosted развёртывания:',
             '• Разверните на своей инфраструктуре (on-premise или private cloud)',
@@ -368,7 +368,7 @@ export default function FAQPage() {
           FAQ & Документация
         </h1>
         <p className="text-lg text-[#45515e]">
-          Подробные ответы на частые вопросы о DeepThroath — платформе для тестирования безопасности и качества LLM-систем
+          Подробные ответы на частые вопросы о DeepThroat — платформе для тестирования безопасности и качества LLM-систем
         </p>
       </div>
 
@@ -438,7 +438,7 @@ export default function FAQPage() {
           Не нашли ответ?
         </h3>
         <p className="text-[#45515e] mb-6">
-          Если у вас остались вопросы или нужна помощь с настройкой DeepThroath, свяжитесь с нами:
+          Если у вас остались вопросы или нужна помощь с настройкой DeepThroat, свяжитесь с нами:
         </p>
         <div className="flex flex-wrap gap-4">
           <a
@@ -453,7 +453,7 @@ export default function FAQPage() {
             GitHub Repository
           </a>
           <a
-            href="https://github.com/InfernYaCr/DeepThroath/issues"
+            href="https://github.com/InfernYaCr/DeepThroat/issues"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-6 py-3 bg-white border border-[#e5e7eb] text-[#181e25] rounded-lg hover:bg-[#f8f9fa] transition-colors font-medium"

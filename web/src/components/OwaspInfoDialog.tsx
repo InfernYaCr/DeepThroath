@@ -107,9 +107,9 @@ export function OwaspInfoDialog() {
           </section>
 
           <section className="border-t border-[#e5e7eb] pt-6">
-            <h3 className="text-lg font-bold text-[#222222] mb-3">Как работает DeepThroath?</h3>
+            <h3 className="text-lg font-bold text-[#222222] mb-3">Как работает DeepThroat?</h3>
             <p className="text-[#45515e] leading-relaxed mb-3">
-              DeepThroath автоматически тестирует вашу LLM-систему на соответствие стандарту OWASP LLM Top 10:
+              DeepThroat автоматически тестирует вашу LLM-систему на соответствие стандарту OWASP LLM Top 10:
             </p>
             <ul className="space-y-2 text-[#45515e]">
               <li className="flex items-start gap-2">
@@ -148,7 +148,7 @@ export function OwaspInfoDialog() {
                 rel="noopener noreferrer"
                 className="block text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
               >
-                → Репозиторий DeepThroath на GitHub
+                → Репозиторий DeepThroat на GitHub
               </a>
             </div>
           </section>

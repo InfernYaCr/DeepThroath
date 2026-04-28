@@ -129,7 +129,7 @@ export default function Dashboard() {
              <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
                  <Zap className="w-10 h-10 text-emerald-400" />
              </div>
-             <h2 suppressHydrationWarning className="text-3xl font-extrabold tracking-tight mb-4 drop-shadow-sm">Добро пожаловать в DeepThroath</h2>
+             <h2 suppressHydrationWarning className="text-3xl font-extrabold tracking-tight mb-4 drop-shadow-sm">Добро пожаловать в DeepThroat</h2>
              <p className="text-[#8e8e93] text-lg mb-8 leading-relaxed">
                Кажется, у вас еще нет завершенных прогонов Red Teaming.<br/>Запустите тестирование атак, чтобы увидеть аналитику безопасности.
              </p>
@@ -150,7 +150,7 @@ export default function Dashboard() {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <h1 suppressHydrationWarning className="text-5xl font-extrabold tracking-tight text-[#222222] drop-shadow-sm" style={{ fontFamily: "var(--font-outfit, Outfit)" }}>
-              DeepThroath
+              DeepThroat
             </h1>
             <p className="text-[#45515e] mt-3 text-lg font-medium">Аналитика безопасности LLM</p>
             <div className="mt-3">
